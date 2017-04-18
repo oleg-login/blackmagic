@@ -22,12 +22,15 @@
 
 #include <libopencm3/cm3/common.h>
 
-#ifndef STM32F4
-#	include <libopencm3/stm32/f1/memorymap.h>
-#	include <libopencm3/stm32/f1/gpio.h>
-#else
+#ifdef STM32F4
 #	include <libopencm3/stm32/f4/memorymap.h>
 #	include <libopencm3/stm32/f4/gpio.h>
+#elif defined(STM32F3)
+#	include <libopencm3/stm32/f3/memorymap.h>
+#	include <libopencm3/stm32/f3/gpio.h>
+#else
+#	include <libopencm3/stm32/f1/memorymap.h>
+#	include <libopencm3/stm32/f1/gpio.h>
 #endif
 
 #define INLINE_GPIO
@@ -51,11 +54,11 @@ static inline void _gpio_set(uint32_t gpioport, uint16_t gpios)
 
 static inline void _gpio_clear(uint32_t gpioport, uint16_t gpios)
 {
-#ifndef STM32F4
-	GPIO_BRR(gpioport) = gpios;
+#if defined(STM32F4) || defined(STM32F3)
+	GPIO_BSRR(gpioport) = gpios<<16;
+	GPIO_BSRR(gpioport) = gpios<<16;
 #else
-	GPIO_BSRR(gpioport) = gpios<<16;
-	GPIO_BSRR(gpioport) = gpios<<16;
+	GPIO_BRR(gpioport) = gpios;
 #endif
 }
 #define gpio_clear _gpio_clear

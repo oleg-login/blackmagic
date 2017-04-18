@@ -1,8 +1,7 @@
 /*
  * This file is part of the Black Magic Debug project.
  *
- * Copyright (C) 2011  Black Sphere Technologies Ltd.
- * Written by Gareth McMullin <gareth@blacksphere.co.nz>
+ * Copyright (C) 2017 Uwe Bonnes bon@elektron,ikp,physik.tu-darmstadt.de
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* This file implements the platform specific functions for the STM32
+/* This file implements the platform specific functions for the STM32F3_IF
  * implementation.
  */
 
@@ -27,74 +26,95 @@
 #include "usbuart.h"
 #include "morse.h"
 
-#include <libopencm3/stm32/f4/rcc.h>
+#include <libopencm3/stm32/f3/rcc.h>
 #include <libopencm3/cm3/scb.h>
 #include <libopencm3/cm3/nvic.h>
-#include <libopencm3/stm32/exti.h>
 #include <libopencm3/stm32/usart.h>
 #include <libopencm3/stm32/syscfg.h>
 #include <libopencm3/usb/usbd.h>
-#include <libopencm3/cm3/systick.h>
-#include <libopencm3/cm3/cortex.h>
+#include <libopencm3/stm32/flash.h>
 
-jmp_buf fatal_error_jmpbuf;
 extern uint32_t _ebss;
+
+inline void set_clock(void)
+{
+	uint32_t cfgr;
+	rcc_osc_on(RCC_HSE);
+	rcc_wait_for_osc_ready(RCC_HSE);
+	cfgr = (((72 / 8) - 2) << RCC_CFGR_PLLMUL_SHIFT) |
+		RCC_CFGR_PLLSRC |
+		(RCC_CFGR_PPRE1_DIV_2 << RCC_CFGR_PPRE1_SHIFT);
+	RCC_CFGR = cfgr;
+	rcc_osc_on(RCC_PLL);
+	rcc_wait_for_osc_ready(RCC_PLL);
+	flash_set_ws(2);
+	cfgr |= RCC_CFGR_SWS_PLL;
+	RCC_CFGR = cfgr;
+	rcc_wait_for_sysclk_status(RCC_PLL);
+}
 
 void platform_init(void)
 {
 	volatile uint32_t *magic = (uint32_t *) &_ebss;
-	/* Check the USER button*/
-	rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPAEN);
-	if (gpio_get(GPIOA, GPIO0) ||
-		((magic[0] == BOOTMAGIC0) && (magic[1] == BOOTMAGIC1))) {
+	/* If RCC_CFGR is not at it's reset value, the bootloader was executed
+	 * and SET_ADDRESS got us to this place. On F3, without further efforts,
+	 * DFU does not start in that case.
+	 * So issue an reset to allow a clean start!
+	 */
+	if (RCC_CFGR)
+		scb_reset_system();
+	SYSCFG_MEMRM &= ~3;
+	/* Buttom is BOOT0, so buttom is already evaluated!*/
+	if (((magic[0] == BOOTMAGIC0) && (magic[1] == BOOTMAGIC1))) {
 		magic[0] = 0;
 		magic[1] = 0;
-		rcc_peripheral_disable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPAEN);
-		/* Assert blue LED as indicator we are in the bootloader */
-		rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPDEN);
-		gpio_mode_setup(LED_PORT, GPIO_MODE_OUTPUT,
-						GPIO_PUPD_NONE, LED_BOOTLOADER);
-		gpio_set(LED_PORT, LED_BOOTLOADER);
 		/* Jump to the built in bootloader by mapping System flash.
 		   As we just come out of reset, no other deinit is needed!*/
-		rcc_peripheral_enable_clock(&RCC_APB2ENR, RCC_APB2ENR_SYSCFGEN);
-		SYSCFG_MEMRM &= ~3;
 		SYSCFG_MEMRM |=  1;
 		scb_reset_core();
 	}
-
-	rcc_clock_setup_hse_3v3(&hse_8mhz_3v3[CLOCK_3V3_48MHZ]);
-
+	set_clock();
+	/* Detach USB by pulling PA9/USB_DETACH_N low.*/
+	rcc_periph_clock_enable(RCC_GPIOA);
+	gpio_clear(GPIOA, GPIO9);
+	gpio_mode_setup(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_NONE, GPIO9);
 	/* Enable peripherals */
-	rcc_peripheral_enable_clock(&RCC_AHB2ENR, RCC_AHB2ENR_OTGFSEN);
-	rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPCEN);
-	rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_IOPDEN);
-	rcc_peripheral_enable_clock(&RCC_AHB1ENR, RCC_AHB1ENR_CRCEN);
+	rcc_periph_clock_enable(RCC_GPIOB);
+	rcc_periph_clock_enable(RCC_CRC);
+	rcc_periph_clock_enable(RCC_USB);
 
 	/* Set up USB Pins and alternate function*/
 	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12);
-	gpio_set_af(GPIOA, GPIO_AF10, GPIO11 | GPIO12);
+	gpio_set_af(GPIOA, GPIO_AF14, GPIO11 | GPIO12);
 
-	GPIOC_OSPEEDR &=~0xF30;
-	GPIOC_OSPEEDR |= 0xA20;
+//	GPIOA_OSPEEDR |= 0xf00c; /* Set High speed on PA1, PA6,PA7*/
+	GPIOA_OSPEEDR |= 0x5004; /* Set medium speed on PA1, PA6,PA7*/
 	gpio_mode_setup(JTAG_PORT, GPIO_MODE_OUTPUT,
-			GPIO_PUPD_NONE,
-			TMS_PIN | TCK_PIN | TDI_PIN);
-
+					GPIO_PUPD_NONE,
+					TMS_PIN | TCK_PIN |TDI_PIN);
 	gpio_mode_setup(TDO_PORT, GPIO_MODE_INPUT,
-			GPIO_PUPD_NONE,
-			TDO_PIN);
-
+					GPIO_PUPD_NONE,
+					TDO_PIN);
 	gpio_mode_setup(LED_PORT, GPIO_MODE_OUTPUT,
-			GPIO_PUPD_NONE,
-			LED_UART | LED_IDLE_RUN | LED_ERROR | LED_BOOTLOADER);
-
+					GPIO_PUPD_NONE,
+					LED_UART | LED_IDLE_RUN | LED_ERROR | LED_BOOTLOADER);
+	gpio_mode_setup(SRST_PORT, GPIO_MODE_OUTPUT,
+					GPIO_PUPD_NONE,
+					SRST_PIN);
+	gpio_set(SRST_PORT, SRST_PIN);
+	gpio_set_output_options(SRST_PORT, GPIO_OTYPE_OD,
+							GPIO_OSPEED_2MHZ, SRST_PIN);
 	platform_timing_init();
-	usbuart_init();
+	gpio_set(GPIOA, GPIO9); /* Attach USB*/
 	cdcacm_init();
+	usbuart_init();
 }
 
-void platform_srst_set_val(bool assert) { (void)assert; }
+void platform_srst_set_val(bool assert)
+{
+	gpio_set_val(SRST_PORT, SRST_PIN, !assert);
+}
+
 bool platform_srst_get_val(void) { return false; }
 
 const char *platform_target_voltage(void)

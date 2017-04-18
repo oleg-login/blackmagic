@@ -44,5 +44,8 @@
 #undef MAX
 #define MAX(x, y)  (((x) > (y)) ? (x) : (y))
 
+#define BOOTMAGIC0 0xb007da7a
+#define BOOTMAGIC1 0xbaadfeed
+
 #endif
 

@@ -4,11 +4,11 @@ OBJCOPY = $(CROSS_COMPILE)objcopy
 
 CFLAGS += -Istm32/include -mcpu=cortex-m4 -mthumb \
 	-mfloat-abi=hard -mfpu=fpv4-sp-d16 \
-	-DSTM32F4 -DF4DISCOVERY -I../libopencm3/include \
+	-DSTM32F3 -DF3_IF -I../libopencm3/include \
 	-Iplatforms/stm32
 
-LDFLAGS = -lopencm3_stm32f4 -Wl,--defsym,_stack=0x20010000 \
-	-Wl,-T,platforms/stm32/f4discovery.ld -nostartfiles -lc -lnosys \
+LDFLAGS = -lopencm3_stm32f3 -Wl,--defsym,_stack=0x20008000 \
+	-Wl,-T,platforms/stm32/stm32f303xc.ld -nostartfiles -lc -lnosys \
 	-Wl,-Map=mapfile -mthumb -mcpu=cortex-m4 -Wl,-gc-sections \
 	-mfloat-abi=hard -mfpu=fpv4-sp-d16 \
 	-L../libopencm3/lib
