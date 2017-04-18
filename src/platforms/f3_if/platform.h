@@ -1,8 +1,7 @@
 /*
  * This file is part of the Black Magic Debug project.
  *
- * Copyright (C) 2011  Black Sphere Technologies Ltd.
- * Written by Gareth McMullin <gareth@blacksphere.co.nz>
+ * Copyright (C) 2017 Uwe Bonnes bon@elektron,ikp,physik.tu-darmstadt.de
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,36 +31,35 @@
 #include <setjmp.h>
 
 #define PLATFORM_HAS_TRACESWO
-#define BOARD_IDENT "Black Magic Probe (F4Discovery), (Firmware " FIRMWARE_VERSION ")"
-#define DFU_IDENT   "Black Magic Firmware Upgrade (F4Discovery)"
+#define BOARD_IDENT "Black Magic Probe (F3_IF), (Firmware " FIRMWARE_VERSION ")"
+#define DFU_IDENT   "Black Magic Firmware Upgrade (F3_IF)"
 
 /* Important pin mappings for STM32 implementation:
  *
- * LED0 = 	PD12	(Green  LED : Running)
- * LED1 = 	PD13	(Orange LED : Idle)
- * LED2 = 	PD12	(Red LED    : Error)
- * LED3 = 	PD15	(Blue LED   : Bootloader active)
+ * LED0 = 	PB5	(Green  LED : Running)
+ * LED1 = 	PB6	(Orange LED : Idle)
+ * LED2 = 	PB7	(Red LED    : Error)
  *
  * nTRST = 	PC1
  * SRST_OUT =   PC8
- * TDI = 	PC2
- * TMS = 	PC4 (input for SWDP)
- * TCK = 	PC5/SWCLK
- * TDO = 	PC6 (input for TRACESWO
- * nSRST =
+ * TDI = 	PA0
+ * TMS = 	PA1 (input for SWDP)
+ * TCK = 	PA6/SWCLK
+ * TDO = 	PA6 (input for TRACESWO
+ * nSRST =	PA5
  *
  * Force DFU mode button: PA0
  */
 
 /* Hardware definitions... */
-#define JTAG_PORT 	GPIOC
+#define JTAG_PORT 	GPIOA
 #define TDI_PORT	JTAG_PORT
 #define TMS_PORT	JTAG_PORT
 #define TCK_PORT	JTAG_PORT
-#define TDO_PORT	GPIOC
-#define TDI_PIN		GPIO2
-#define TMS_PIN		GPIO4
-#define TCK_PIN		GPIO5
+#define TDO_PORT	JTAG_PORT
+#define TDI_PIN		GPIO0
+#define TMS_PIN		GPIO1
+#define TCK_PIN		GPIO7
 #define TDO_PIN		GPIO6
 
 #define SWDIO_PORT 	JTAG_PORT
@@ -69,17 +67,16 @@
 #define SWDIO_PIN	TMS_PIN
 #define SWCLK_PIN	TCK_PIN
 
-#define TRST_PORT	GPIOC
-#define TRST_PIN	GPIO1
-#define SRST_PORT	GPIOC
-#define SRST_PIN	GPIO8
+#define SRST_PORT	GPIOA
+#define SRST_PIN	GPIO5
 
-#define LED_PORT	GPIOD
-#define LED_PORT_UART	GPIOD
-#define LED_UART	GPIO12
-#define LED_IDLE_RUN	GPIO13
-#define LED_ERROR	GPIO14
-#define LED_BOOTLOADER	GPIO15
+#define LED_PORT	GPIOB
+#define LED_PORT_UART	GPIOB
+#define LED_UART	GPIO6
+#define LED_IDLE_RUN	GPIO5
+#define LED_ERROR	GPIO7
+/* PORTB does not stay active in system bootloader!*/
+#define LED_BOOTLOADER	GPIO6
 
 #define TMS_SET_MODE() \
 	gpio_mode_setup(TMS_PORT, GPIO_MODE_OUTPUT, \
@@ -93,9 +90,9 @@
 	                GPIO_PUPD_NONE, SWDIO_PIN);
 
 
-#define USB_DRIVER      stm32f107_usb_driver
-#define USB_IRQ         NVIC_OTG_FS_IRQ
-#define USB_ISR         otg_fs_isr
+#define USB_DRIVER      st_usbfs_v1_usb_driver
+#define USB_IRQ         NVIC_USB_LP_CAN1_RX0_IRQ
+#define USB_ISR         usb_lp_can1_rx0_isr
 /* Interrupt priorities.  Low numbers are high priority.
  * For now USART1 preempts USB which may spin while buffer is drained.
  * TIM3 is used for traceswo capture and must be highest priority.
@@ -105,28 +102,27 @@
 #define IRQ_PRI_USBUSART_TIM	(3 << 4)
 #define IRQ_PRI_TRACE		(0 << 4)
 
-#define USBUSART USART3
-#define USBUSART_CR1 USART3_CR1
-#define USBUSART_IRQ NVIC_USART3_IRQ
-#define USBUSART_CLK RCC_USART3
-#define USBUSART_TX_PORT GPIOD
-#define USBUSART_TX_PIN  GPIO8
-#define USBUSART_RX_PORT GPIOD
-#define USBUSART_RX_PIN  GPIO9
-#define USBUSART_ISR usart3_isr
+#define USBUSART USART2
+#define USBUSART_CR1 USART2_CR1
+#define USBUSART_IRQ NVIC_USART2_EXTI26_IRQ
+#define USBUSART_CLK RCC_USART2
+#define USBUSART_TX_PORT GPIOA
+#define USBUSART_TX_PIN  GPIO3
+#define USBUSART_RX_PORT GPIOA
+#define USBUSART_RX_PIN  GPIO2
+#define USBUSART_ISR usart2_exti26_isr
 #define USBUSART_TIM TIM4
 #define USBUSART_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM4)
 #define USBUSART_TIM_IRQ NVIC_TIM4_IRQ
 #define USBUSART_TIM_ISR tim4_isr
+#define USART_SR(x) USART2_ISR
 
-#define UART_PIN_SETUP() do { \
-	gpio_mode_setup(USBUSART_TX_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, \
-	                USBUSART_TX_PIN); \
-	gpio_mode_setup(USBUSART_RX_PORT, GPIO_MODE_AF, GPIO_PUPD_NONE, \
-	                USBUSART_RX_PIN); \
-	gpio_set_af(USBUSART_TX_PORT, GPIO_AF7, USBUSART_TX_PIN); \
-	gpio_set_af(USBUSART_RX_PORT, GPIO_AF7, USBUSART_RX_PIN); \
-    } while(0)
+#define UART_PIN_SETUP() do {											\
+		gpio_mode_setup(USBUSART_TX_PORT, GPIO_MODE_AF, GPIO_PUPD_PULLUP, \
+						USBUSART_TX_PIN | USBUSART_RX_PIN);				\
+		gpio_set_af(USBUSART_TX_PORT, GPIO_AF7,							\
+					USBUSART_TX_PIN | USBUSART_RX_PIN);					\
+	} while(0)
 
 #define TRACE_TIM TIM3
 #define TRACE_TIM_CLK_EN() rcc_periph_clock_enable(RCC_TIM3)

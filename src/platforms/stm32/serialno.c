@@ -25,7 +25,7 @@ char *serialno_read(char *s)
 	volatile uint16_t *uid = (volatile uint16_t *)DESIG_UNIQUE_ID_BASE;
 # if defined(STM32F4)
 	int offset = 3;
-# elif defined(STM32L0) || defined(STM32F4)
+# elif defined(STM32L0) || defined(STM32F3)
 	int offset = 5;
 #endif
 	sprintf(s, "%04X%04X%04X",
