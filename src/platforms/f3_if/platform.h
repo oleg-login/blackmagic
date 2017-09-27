@@ -30,6 +30,11 @@
 
 #include <setjmp.h>
 
+#ifdef ENABLE_DEBUG
+# define PLATFORM_HAS_DEBUG
+# define USBUART_DEBUG
+#endif
+
 #define PLATFORM_HAS_TRACESWO
 #define BOARD_IDENT "Black Magic Probe (F3_IF), (Firmware " FIRMWARE_VERSION ")"
 #define DFU_IDENT   "Black Magic Firmware Upgrade (F3_IF)"
@@ -129,7 +134,14 @@
 #define TRACE_IRQ   NVIC_TIM3_IRQ
 #define TRACE_ISR   tim3_isr
 
-#define DEBUG(...)
+#ifdef ENABLE_DEBUG
+extern bool debug_bmp;
+int usbuart_debug_write(const char *buf, size_t len);
+# define DEBUG printf
+#else
+# define DEBUG(...)
+#endif
+
 
 #define gpio_set_val(port, pin, val) do {	\
 	if(val)					\
