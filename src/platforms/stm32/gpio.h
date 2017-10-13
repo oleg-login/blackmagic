@@ -28,6 +28,9 @@
 #elif defined(STM32F3)
 #	include <libopencm3/stm32/f3/memorymap.h>
 #	include <libopencm3/stm32/f3/gpio.h>
+#elif defined(STM32F0)
+#	include <libopencm3/stm32/f0/memorymap.h>
+#	include <libopencm3/stm32/f0/gpio.h>
 #else
 #	include <libopencm3/stm32/f1/memorymap.h>
 #	include <libopencm3/stm32/f1/gpio.h>
