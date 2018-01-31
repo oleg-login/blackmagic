@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # stm32_mem.py: STM32 memory access using USB DFU class
-# Copyright (C) 2011  Black Sphere Technologies 
+# Copyright (C) 2011  Black Sphere Technologies
 # Copyright (C) 2017  Uwe Bonnes (bon@elektron.ikp.physik.tu-darmstadt.de)
 # Written by Gareth McMullin <gareth@blacksphere.co.nz>
 #
@@ -87,8 +87,7 @@ def stm32_scan(args, test):
 	if not devs:
 		if test == True:
 			return
-
-		print "No DFU devices found!"
+		print("No DFU devices found!")
 		exit(-1)
 
 	for dev in devs:
@@ -101,33 +100,27 @@ def stm32_scan(args, test):
 			continue
 
 		man = dfudev.handle.getString(dfudev.dev.iManufacturer, 30)
-		if man == "Black Sphere Technologies":
-			bmp = bmp + 1
-			bmp_devs.append(dev)
-
-	if bmp == 0:
+		print("Found %s\n" % man.decode('utf-8'))
+		if man.decode('utf-8') == "Black Sphere Technologies": bmp = bmp + 1
+	if bmp == 0 :
 		if test == True:
 			return
-
-		print "No compatible device found\n"
+		print("No compatible device found\n")
 		exit(-1)
-
-	if bmp > 1 and not args.serial_target:
+	if bmp > 1 and not args.serial_target :
 		if test == True:
 			return
-
-		print "Found multiple devices:\n"
-		for dev in bmp_devs:
+		print("Found multiple devices:\n")
+		for dev in devs:
 			dfudev = dfu.dfu_device(*dev)
 			man = dfudev.handle.getString(dfudev.dev.iManufacturer, 30)
 			product = dfudev.handle.getString(dfudev.dev.iProduct, 96)
 			serial_no = dfudev.handle.getString(dfudev.dev.iSerialNumber, 30)
-			print "Device ID:\t %04x:%04x" % (dfudev.dev.idVendor, dfudev.dev.idProduct)
-			print "Manufacturer:\t %s" % man
-			print "Product:\t %s" % product
-			print "Serial:\t\t %s\n" % serial_no
-
-		print "Select device with serial number!"
+			print("Device ID:\t %04x:%04x" % (dfudev.dev.idVendor, dfudev.dev.idProduct))
+			print("Manufacturer:\t %s" % man.decode('utf-8'))
+			print("Product:\t %s" % product.decode('utf-8'))
+			print("Serial:\t\t %s\n" % serial_no.decode('utf-8'))
+		print("Select device with serial number!")
 		exit (-1)
 
 	for dev in bmp_devs:
@@ -139,25 +132,22 @@ def stm32_scan(args, test):
 			if man == "Black Sphere Technologies" and serial_no ==	args.serial_target:
 				break
 		else:
-			if man == "Black Sphere Technologies":
-				break
-
-	print "Device ID:\t %04x:%04x" % (dfudev.dev.idVendor, dfudev.dev.idProduct)
-	print "Manufacturer:\t %s" % man
-	print "Product:\t %s" % product
-	print "Serial:\t\t %s" % serial_no
-
-	if args.serial_target and serial_no != args.serial_target:
-		print "Serial number doesn't match!\n"
+			if man == "Black Sphere Technologies": break
+	print("Device ID:\t %04x:%04x" % (dfudev.dev.idVendor, dfudev.dev.idProduct))
+	print("Manufacturer:\t %s" % man)
+	print("Product:\t %s" % product)
+	print("Serial:\t\t %s" % serial_no)
+	if args.serial_target and serial_no !=	args.serial_target:
+		print("Serial number doesn't match!\n")
 		exit(-2)
 
 	return dfudev
 
 if __name__ == "__main__":
-	print
-	print "USB Device Firmware Upgrade - Host Utility -- version 1.2"
-	print "Copyright (C) 2011  Black Sphere Technologies"
-	print "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>"
+	print()
+	print("USB Device Firmware Upgrade - Host Utility -- version 1.2")
+	print("Copyright (C) 2011  Black Sphere Technologies")
+	print("License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>")
 	print
 
 	parser = argparse.ArgumentParser()
@@ -171,12 +161,12 @@ if __name__ == "__main__":
 		state = dfudev.get_state()
 	except:
 		if args.manifest : exit(0)
-		print "Failed to read device state! Assuming APP_IDLE"
+		print("Failed to read device state! Assuming APP_IDLE")
 		state = dfu.STATE_APP_IDLE
 	if state == dfu.STATE_APP_IDLE:
 		dfudev.detach()
 		dfudev.release()
-		print "Invoking DFU Device"
+		print("Invoking DFU Device")
 		timeout = 0
 		while True :
 			sleep(0.5)
@@ -184,11 +174,11 @@ if __name__ == "__main__":
 			dfudev = stm32_scan(args, True)
 			if dfudev: break
 			if timeout > 5 :
-				print "Error: DFU device did not appear"
+				print("Error: DFU device did not appear")
 				exit(-1)
 	if args.manifest :
 		stm32_manifest(dfudev)
-		print "Invoking Application Device"
+		print("Invoking Application Device")
 		exit(0)
 	dfudev.make_idle()
 	file = open(args.progfile, "rb")
@@ -198,7 +188,7 @@ if __name__ == "__main__":
 	if args.address :
 		start = int(args.address, 0)
 	else :
-		if "F4" in product:
+		if "F4" in product.decode('utf-8'):
 			start = 0x8004000
 		else:
 			start = 0x8002000
@@ -213,12 +203,12 @@ if __name__ == "__main__":
 # get evaluated and erase called only once per sector!
 			stm32_erase(dfudev, addr)
 		except:
-			print "\nErase Timed out\n"
+			print("\nErase Timed out\n")
 			break
 		try:
 			stm32_set_address(dfudev, addr)
 		except:
-			print "\nSet Address Timed out\n"
+			print("\nSet Address Timed out\n")
 			break
 		stm32_write(dfudev, bin[:1024])
 		bin = bin[1024:]
@@ -227,8 +217,8 @@ if __name__ == "__main__":
 	bin = file.read()
 	len = len(bin)
 	addr = start
-        print
-        while bin:
+	print
+	while bin:
 		try:
 			stm32_set_address(dfudev, addr)
 			data = stm32_read(dfudev)
@@ -236,7 +226,7 @@ if __name__ == "__main__":
 # Abort silent if bootloader does not support upload
 			break
 		print ("Verifying memory at   0x%08X\r" % addr),
-                stdout.flush()
+		stdout.flush()
 		if len > 1024 :
 			size = 1024
 		else :
@@ -248,7 +238,7 @@ if __name__ == "__main__":
 		addr += 1024
 		len -= 1024
 		if len <= 0 :
-			print "\nVerified!"
+			print("\nVerified!")
 	stm32_manifest(dfudev)
 
-	print "All operations complete!\n"
+	print("All operations complete!\n")
