@@ -70,6 +70,9 @@
 
 #define PLATFORM_HAS_TRACESWO	1
 #define NUM_TRACE_PACKETS		(128)		/* This is an 8K buffer */
+# define SWD_MODE GPIO_CRH(SWDIO_PORT)
+# define SWD_CR   GPIO_CRH(SWDIO_PORT)
+# define SWD_CR_MULT (1 << ((14 - 8) << 2))
 
 # define SWD_CR   GPIO_CRH(SWDIO_PORT)
 # define SWD_CR_MULT (1 << ((14 - 8) << 2))
