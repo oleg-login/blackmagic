@@ -49,7 +49,7 @@
  * SRST_OUT =   PC8
  * TDI = 	PA0
  * TMS = 	PA1 (input for SWDP)
- * TCK = 	PA6/SWCLK
+ * TCK = 	PA7/SWCLK
  * TDO = 	PA6 (input for TRACESWO
  * nSRST =	PA5
  *
@@ -83,16 +83,13 @@
 /* PORTB does not stay active in system bootloader!*/
 #define LED_BOOTLOADER	GPIO6
 
+# define SWD_MODER   GPIO_MODER(SWDIO_PORT)
+# define SWD_MODE_MASK (1 << (1 << 1))
 #define TMS_SET_MODE() \
 	gpio_mode_setup(TMS_PORT, GPIO_MODE_OUTPUT, \
 	                GPIO_PUPD_NONE, TMS_PIN);
-#define SWDIO_MODE_FLOAT() \
-	gpio_mode_setup(SWDIO_PORT, GPIO_MODE_INPUT, \
-	                GPIO_PUPD_NONE, SWDIO_PIN);
-
-#define SWDIO_MODE_DRIVE() \
-	gpio_mode_setup(SWDIO_PORT, GPIO_MODE_OUTPUT, \
-	                GPIO_PUPD_NONE, SWDIO_PIN);
+#define SWDIO_MODE_FLOAT() SWD_MODER &= ~SWD_MODE_MASK
+#define SWDIO_MODE_DRIVE() SWD_MODER |=  SWD_MODE_MASK
 
 
 #define USB_DRIVER      st_usbfs_v1_usb_driver
@@ -141,14 +138,6 @@ int usbuart_debug_write(const char *buf, size_t len);
 #else
 # define DEBUG(...)
 #endif
-
-
-#define gpio_set_val(port, pin, val) do {	\
-	if(val)					\
-		gpio_set((port), (pin));	\
-	else					\
-		gpio_clear((port), (pin));	\
-} while(0)
 
 #define SET_RUN_STATE(state)	{running_status = (state);}
 #define SET_IDLE_STATE(state)	{gpio_set_val(LED_PORT, LED_IDLE_RUN, state);}
