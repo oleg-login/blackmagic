@@ -87,14 +87,16 @@ void platform_init(void)
 	gpio_mode_setup(GPIOA, GPIO_MODE_AF, GPIO_PUPD_NONE, GPIO11 | GPIO12);
 	gpio_set_af(GPIOA, GPIO_AF14, GPIO11 | GPIO12);
 
-//	GPIOA_OSPEEDR |= 0xf00c; /* Set High speed on PA1, PA6,PA7*/
-	GPIOA_OSPEEDR |= 0x5004; /* Set medium speed on PA1, PA6,PA7*/
+//	GPIOA_OSPEEDR |= 0x800A; /* Set High speed on PA0,PA1, PA7*/
+	GPIOA_OSPEEDR |= 0x4005; /* Set medium speed on PA0,PA1, PA7*/
+	gpio_mode_setup(JTAG_PORT, GPIO_MODE_INPUT,
+					GPIO_PUPD_PULLUP, TMS_PIN);
 	gpio_mode_setup(JTAG_PORT, GPIO_MODE_OUTPUT,
-					GPIO_PUPD_NONE,
-					TMS_PIN | TCK_PIN |TDI_PIN);
+					GPIO_PUPD_PULLUP, TDI_PIN);
+	gpio_mode_setup(JTAG_PORT, GPIO_MODE_OUTPUT,
+					GPIO_PUPD_NONE, TCK_PIN);
 	gpio_mode_setup(TDO_PORT, GPIO_MODE_INPUT,
-					GPIO_PUPD_NONE,
-					TDO_PIN);
+					GPIO_PUPD_PULLUP, TDO_PIN);
 	gpio_mode_setup(LED_PORT, GPIO_MODE_OUTPUT,
 					GPIO_PUPD_NONE,
 					LED_UART | LED_IDLE_RUN | LED_ERROR | LED_BOOTLOADER);
