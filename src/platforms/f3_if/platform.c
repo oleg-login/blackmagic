@@ -114,10 +114,15 @@ void platform_init(void)
 
 void platform_srst_set_val(bool assert)
 {
-	gpio_set_val(SRST_PORT, SRST_PIN, !assert);
+	while (gpio_get(SRST_PORT, SRST_PIN) == assert)
+		gpio_set_val(SRST_PORT, SRST_PIN, !assert);
+	platform_delay(5);
 }
 
-bool platform_srst_get_val(void) { return false; }
+bool platform_srst_get_val(void)
+{
+	return (gpio_get(SRST_PORT, SRST_PIN)) ? false : true;
+}
 
 const char *platform_target_voltage(void)
 {
