@@ -26,9 +26,9 @@ import argparse
 import usb
 import dfu
 
-CMD_GETCOMMANDS =            0x00
-CMD_SETADDRESSPOINTER =      0x21
-CMD_ERASE =                  0x41
+CMD_GETCOMMANDS =       0x00
+CMD_SETADDRESSPOINTER = 0x21
+CMD_ERASE =             0x41
 
 def stm32_erase(dev, addr):
 	erase_cmd = struct.pack("<BL", CMD_ERASE, addr)
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 			start = 0x8002000
 	addr = start
 	while bin:
-		print ("Programming memory at 0x%08X\r" % addr),
+		print ("Programming memory at 0x%08X" % addr, end="\r"),
 		stdout.flush()
 		try:
 # STM DFU bootloader erases always.
@@ -225,7 +225,7 @@ if __name__ == "__main__":
 		except:
 # Abort silent if bootloader does not support upload
 			break
-		print ("Verifying memory at   0x%08X\r" % addr),
+		print ("Verifying memory at   0x%08X" % addr, end = "\r"),
 		stdout.flush()
 		if len > 1024 :
 			size = 1024
