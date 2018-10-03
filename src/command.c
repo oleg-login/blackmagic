@@ -162,9 +162,7 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 		irlens[argc-1] = 0;
 	}
 
-	if(connect_assert_srst)
-		platform_srst_set_val(true); /* will be deasserted after attach */
-
+	platform_srst_set_val(connect_assert_srst);
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
@@ -193,9 +191,7 @@ bool cmd_swdp_scan(void)
 {
 	gdb_outf("Target voltage: %s\n", platform_target_voltage());
 
-	if(connect_assert_srst)
-		platform_srst_set_val(true); /* will be deasserted after attach */
-
+	platform_srst_set_val(connect_assert_srst);
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
