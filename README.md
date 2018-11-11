@@ -20,3 +20,9 @@ using the GNU source level debugging software, GDB.
 See online documentation at https://github.com/blacksphere/blackmagic/wiki
 
 Binaries from the latest automated build are at http://builds.blacksphere.co.nz/blackmagic
+
+Staging branch
+=================
+This branch is for including pull requests and patches the author thinks are
+sensible. Users are invited to test and report success/failure on the Gitter
+channel to help mantainers to decide to integrate in the master branch or not.
