@@ -26,3 +26,27 @@ Staging branch
 This branch is for including pull requests and patches the author thinks are
 sensible. Users are invited to test and report success/failure on the Gitter
 channel to help mantainers to decide to integrate in the master branch or not.
+
+Included branches:
+
+mingw_ftdi
+=========
+ENHANCEMENT: Allow to compile libftdi platform also mingw and cygwin.
+ENHANCEMENT: Allow "make all_platforms" to succeed on system using
+             recent libftdi1.
+probe_rework
+============
+FIX:         Add again additional SWD cycles on detach.
+             Otherwise many targets do not restart.
+             Introduced with #391, 2018 Sep 7
+CONSISTANCY: Restore old connect_srst behaviour.
+             #357 introduced the changed syntax 2018 June 21
+ENHANCEMENT: Make probe much less intrusive.
+             Hard to probe STM32F7/H7 provide ADI DPv2 where CPU ID can be read
+             direct from the DP
+ENHANCEMENT: On STM32F7/H7, where DBGMCU must be modified for
+             debugging, restore DBGMCU on detach.
+ENHANCEMENT: With connect under reset, only release SRST when Halt on reset
+             has been set up.
+             Should help when user program disables debug access and with
+             attaching to devices in deep sleep state.
