@@ -582,6 +582,11 @@ static void cortexm_reset(target *t)
 	/* Poll for release from reset */
 	while (target_mem_read32(t, CORTEXM_DHCSR) & CORTEXM_DHCSR_S_RESET_ST);
 
+	/* 1ms delay for internal startup delays, e.g. Stm32F1 HSI clock
+	 * startup delay.
+	 */
+	platform_delay(1);
+
 	/* Reset DFSR flags */
 	target_mem_write32(t, CORTEXM_DFSR, CORTEXM_DFSR_RESETALL);
 
