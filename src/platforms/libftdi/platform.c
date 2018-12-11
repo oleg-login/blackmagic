@@ -62,6 +62,30 @@ cable_desc_t cable_desc[] = {
 		 * from contentions in case of errors.
 		 * JTAG not possible.*/
 		.vendor  = 0x0403,
+		.product = 0x6010,/*FT2232H*/
+		.interface = INTERFACE_B,
+		.init.data_low = PIN4, /* Indicate voltage present */
+		.init.ddr_low  = PIN4, /* Indicate voltage present */
+		.mpsse_swd_read.set_data_low  = MPSSE_DO,
+		.mpsse_swd_write.set_data_low = MPSSE_DO,
+		.assert_srst.data_low   = ~PIN6,
+		.assert_srst.ddr_low    =  PIN6,
+		.deassert_srst.data_low =  PIN6,
+		.deassert_srst.ddr_low  = ~PIN6,
+		.target_voltage_cmd  = GET_BITS_LOW,
+		.target_voltage_pin  = PIN4,
+		.description = "USBMATE",
+		.name = "usbmate"
+	},
+	{
+		/* MPSSE_SK (DB0) ----------- SWDCK/JTCK
+		 * MPSSE-DO (DB1) -- 470 R -- SWDIO/JTMS
+		 * MPSSE-DI (DB2) ----------- SWDIO/JTMS
+		 * DO is tristated with SWD read, so
+		 * resistor is not necessary, but protects
+		 * from contentions in case of errors.
+		 * JTAG not possible.*/
+		.vendor  = 0x0403,
 		.product = 0x6014,/*FT232H*/
 		.interface = INTERFACE_A,
 		.dbus_data = MPSSE_DO | MPSSE_DI | MPSSE_CS,
