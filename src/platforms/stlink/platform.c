@@ -82,9 +82,7 @@ void platform_init(void)
 	if (rev > 1) /* Reconnect USB */
 		gpio_set(GPIOA, GPIO15);
 	cdcacm_init();
-	/* Don't enable UART if we're being debugged. */
-	if (!(SCS_DEMCR & SCS_DEMCR_TRCENA))
-		usbuart_init();
+	usbuart_init();
 }
 
 void platform_srst_set_val(bool assert)
