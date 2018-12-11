@@ -70,12 +70,16 @@ int adiv5_swdp_scan(void)
 	 * allow the ack to be checked here. */
 	swdptap_seq_out(0xA5, 8);
 	ack = swdptap_seq_in(3);
-	if((ack != SWDP_ACK_OK) || swdptap_seq_in_parity(&dp->idcode, 32)) {
-		DEBUG("\n");
+	if(ack != SWDP_ACK_OK) {
+		DEBUG("Wrong ACK 0x%01" PRIx32 "\n", ack);
 		free(dp);
 		return -1;
 	}
-
+	if (swdptap_seq_in_parity(&dp->idcode, 32)) {
+		DEBUG("Iint bad parity received\n");
+		free(dp);
+		return -1;
+	}
 	dp->dp_read = adiv5_swdp_read;
 	dp->error = adiv5_swdp_error;
 	dp->low_access = adiv5_swdp_low_access;
