@@ -243,7 +243,7 @@ static void cortexm_priv_free(void *priv)
 static bool cortexm_forced_halt(target *t)
 {
 	target_halt_request(t);
-	platform_srst_set_val(false);
+	if (platform_srst_get_val()) platform_srst_set_val(false);
 	uint32_t dhcsr = 0;
 	uint32_t start_time = platform_time_ms();
 	/* Try hard to halt the target. STM32F7 in  WFI
@@ -560,8 +560,8 @@ static void cortexm_pc_write(target *t, const uint32_t val)
 static void cortexm_reset(target *t)
 {
 	if ((t->target_options & CORTEXM_TOPT_INHIBIT_SRST) == 0) {
-		platform_srst_set_val(true);
-		platform_srst_set_val(false);
+		while (!platform_srst_get_val()) platform_srst_set_val(true);
+		while ( platform_srst_get_val()) platform_srst_set_val(false);
 	}
 
 	/* Read DHCSR here to clear S_RESET_ST bit before reset */
