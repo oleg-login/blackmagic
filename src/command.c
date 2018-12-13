@@ -62,6 +62,9 @@ static bool cmd_traceswo(target *t, int argc, const char **argv);
 #ifdef PLATFORM_HAS_DEBUG
 static bool cmd_debug_bmp(target *t, int argc, const char **argv);
 #endif
+#ifdef PLATFORM_HAS_MCO
+static bool cmd_mco(target *t, int argc, const char **argv);
+#endif
 
 const struct command_s cmd_list[] = {
 	{"version", (cmd_handler)cmd_version, "Display firmware version info"},
@@ -81,6 +84,9 @@ const struct command_s cmd_list[] = {
 #endif
 #ifdef PLATFORM_HAS_DEBUG
 	{"debug_bmp", (cmd_handler)cmd_debug_bmp, "Output BMP \"debug\" strings to the second vcom: (enable|disable)"},
+#endif
+#ifdef PLATFORM_HAS_MCO
+	{"mco", (cmd_handler)cmd_mco, "Supply clock to the target: (enable{default}|disable)" },
 #endif
 	{NULL, NULL, NULL}
 };
@@ -360,5 +366,22 @@ static bool cmd_debug_bmp(target *t, int argc, const char **argv)
 			 debug_bmp ? "enabled" : "disabled");
 	}
 	return true;
+}
+#endif
+
+#ifdef PLATFORM_HAS_MCO
+extern void mco_set_state(bool state);
+extern bool mco_get_state(void);
+static bool cmd_mco(target *t, int argc, const char **argv)
+{
+    (void)t;
+    if (argc > 1) {
+        bool new_state = strncmp(argv[1], "disable", 3);
+        mco_set_state(new_state);
+    }
+    bool mco_state = mco_get_state();
+    gdb_outf("MCO output is %s\n",
+             mco_state? "enabled" : "disabled");
+    return true;
 }
 #endif
