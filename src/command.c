@@ -168,7 +168,8 @@ static bool cmd_jtag_scan(target *t, int argc, char **argv)
 		irlens[argc-1] = 0;
 	}
 
-	platform_srst_set_val(connect_assert_srst);
+	while (platform_srst_get_val() != connect_assert_srst)
+            platform_srst_set_val(connect_assert_srst);
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
@@ -197,7 +198,8 @@ bool cmd_swdp_scan(void)
 {
 	gdb_outf("Target voltage: %s\n", platform_target_voltage());
 
-	platform_srst_set_val(connect_assert_srst);
+	while (platform_srst_get_val() != connect_assert_srst)
+            platform_srst_set_val(connect_assert_srst);
 	int devs = -1;
 	volatile struct exception e;
 	TRY_CATCH (e, EXCEPTION_ALL) {
@@ -301,8 +303,8 @@ static bool cmd_halt_timeout(target *t, int argc, const char **argv)
 static bool cmd_hard_srst(void)
 {
 	target_list_free();
-	platform_srst_set_val(true);
-	platform_srst_set_val(false);
+	while (!platform_srst_get_val()) platform_srst_set_val(true);
+	while ( platform_srst_get_val()) platform_srst_set_val(false);
 	return true;
 }
 
