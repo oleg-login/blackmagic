@@ -109,3 +109,17 @@ const char *platform_target_voltage(void)
 {
 	return "unknown";
 }
+
+void mco_set_state(bool state)
+{
+    uint32_t mco_state = RCC_CFGR;
+    mco_state &= ~(0x7 << 24);
+    if (state) mco_state |= (RCC_CFGR_MCO_HSE << 24);
+    RCC_CFGR = mco_state;
+}
+
+bool mco_get_state(void)
+{
+    bool mco_enabled = RCC_CFGR & (RCC_CFGR_MCO_HSE << 24);
+    return mco_enabled;
+}
