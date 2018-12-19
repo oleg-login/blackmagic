@@ -151,16 +151,25 @@ static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 		ack = swdptap_seq_in(3);
 	} while (ack == SWDP_ACK_WAIT && !platform_timeout_is_expired(&timeout));
 
-	if (ack == SWDP_ACK_WAIT)
-		raise_exception(EXCEPTION_TIMEOUT, "SWDP ACK timeout");
-
-	if(ack == SWDP_ACK_FAULT) {
-		dp->fault = 1;
-		return 0;
+	switch(ack){
+		case SWDP_ACK_OK:
+#ifdef VERBOSE_DEBUG
+			DEBUG("adiv5_swdp_low_access: SWDP_ACK_OK\n");
+#endif
+			break;
+		case SWDP_ACK_WAIT:
+			DEBUG("adiv5_swdp_low_access: SWDP_ACK_WAIT\n");
+			raise_exception(EXCEPTION_TIMEOUT, "SWDP ACK timeout");
+			break;
+		case SWDP_ACK_FAULT:
+			DEBUG("adiv5_swdp_low_access: SWDP_ACK_FAULT\n");
+			dp->fault = 1;
+			return 0;
+		default:
+			DEBUG("adiv5_swdp_low_access: SWDP invalid ACK 0x%01"  PRIx32 "\n",ack);
+			raise_exception(EXCEPTION_ERROR, "SWDP invalid ACK");
+			break;
 	}
-
-	if(ack != SWDP_ACK_OK)
-		raise_exception(EXCEPTION_ERROR, "SWDP invalid ACK");
 
 	if(RnW) {
 		if(swdptap_seq_in_parity(&response, 32))  /* Give up on parity error */
