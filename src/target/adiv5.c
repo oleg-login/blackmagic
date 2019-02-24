@@ -360,16 +360,17 @@ static bool adiv5_component_probe(ADIv5_AP_t *ap, uint32_t addr)
 ADIv5_AP_t *adiv5_new_ap(ADIv5_DP_t *dp, uint8_t apsel)
 {
 	ADIv5_AP_t *ap, tmpap;
-
+	DEBUG("New AP %d\n", apsel);
 	/* Assume valid and try to read IDR */
 	memset(&tmpap, 0, sizeof(tmpap));
 	tmpap.dp = dp;
 	tmpap.apsel = apsel;
 	tmpap.idr = adiv5_ap_read(&tmpap, ADIV5_AP_IDR);
 
-	if(!tmpap.idr) /* IDR Invalid - Should we not continue here? */
+	if(!tmpap.idr) /* IDR Invalid - Should we not continue here? */ {
+		DEBUG(" IDR Invalid \n");
 		return NULL;
-
+	}
 	/* It's valid to so create a heap copy */
 	ap = malloc(sizeof(*ap));
 	memcpy(ap, &tmpap, sizeof(*ap));
@@ -441,11 +442,13 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 
 	dp->dp_idcode =  adiv5_dp_read(dp, ADIV5_DP_IDCODE);
 	if ((dp->dp_idcode & ADIV5_DP_VERSION_MASK) == ADIV5_DPv2) {
+		DEBUG("TARGETID\n");
 		/* Read TargetID. Can be done with device in WFI, sleep or reset!*/
 		adiv5_dp_write(dp, ADIV5_DP_SELECT, ADIV5_DP_BANK2);
 		dp->targetid = adiv5_dp_read(dp, ADIV5_DP_CTRLSTAT);
 		adiv5_dp_write(dp, ADIV5_DP_SELECT, ADIV5_DP_BANK0);
 		DEBUG("TARGETID %08" PRIx32 "\n", dp->targetid);
+		exit(-1);
 	}
 	/* Probe for APs on this DP */
 	for(int i = 0; i < 256; i++) {

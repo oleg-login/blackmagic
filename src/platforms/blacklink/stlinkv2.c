@@ -291,7 +291,9 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 								  NULL, NULL,
 								  0
 			);
-
+		DEBUG("  Send (%ld): ", txsize);
+		for (size_t z = 0; z < txsize && z < 32 ; z++)
+			DEBUG("%02x", txbuf[z]);
 		if (submit_wait(Stlink.req_trans)) {
 			DEBUG("clear 2\n");
 			libusb_clear_halt(Stlink.handle,2);
@@ -314,18 +316,15 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 		if (res >0) {
 			int i;
 			uint8_t *p = rxbuf;
-			DEBUG("Transfer ");
-			for (i=0; i< res && i <32 ; i++)
+			DEBUG(" Rec (%ld/%d)", rxsize, res);
+			for (i = 0; i < res && i < 32 ; i++)
 				DEBUG("%02x", p[i]);
-			DEBUG("\n");
 		}
 	}
+	DEBUG("\n");
 	return res;
 }
 
-#define ERROR_FAIL -1
-#define ERROR_OK 0
-#define ERROR_WAIT 1
 /**
     Converts an STLINK status code held in the first byte of a response to
 	readable error
@@ -334,66 +333,66 @@ static int stlink_usb_error_check(uint8_t *data)
 {
 	switch (data[0]) {
 		case STLINK_DEBUG_ERR_OK:
-			return ERROR_OK;
+			return STLINK_ERROR_OK;
 		case STLINK_DEBUG_ERR_FAULT:
 			DEBUG("SWD fault response (0x%x)", STLINK_DEBUG_ERR_FAULT);
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_JTAG_GET_IDCODE_ERROR:
 			DEBUG("Failure reading IDCODE");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_WAIT:
 			DEBUG("wait status SWD_AP_WAIT (0x%x)", STLINK_SWD_AP_WAIT);
-			return ERROR_WAIT;
+			return STLINK_ERROR_WAIT;
 		case STLINK_SWD_DP_WAIT:
 			DEBUG("wait status SWD_DP_WAIT (0x%x)", STLINK_SWD_DP_WAIT);
-			return ERROR_WAIT;
+			return STLINK_ERROR_WAIT;
 		case STLINK_JTAG_WRITE_ERROR:
 			DEBUG("Write error");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_JTAG_WRITE_VERIF_ERROR:
 			DEBUG("Write verify error, ignoring");
-			return ERROR_OK;
+			return STLINK_ERROR_OK;
 		case STLINK_SWD_AP_FAULT:
 			/* git://git.ac6.fr/openocd commit 657e3e885b9ee10
-			 * returns ERROR_OK with the comment:
+			 * returns STLINK_ERROR_OK with the comment:
 			 * Change in error status when reading outside RAM.
 			 * This fix allows CDT plugin to visualize memory.
 			 */
 			DEBUG("STLINK_SWD_AP_FAULT");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_ERROR:
 			DEBUG("STLINK_SWD_AP_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_PARITY_ERROR:
 			DEBUG("STLINK_SWD_AP_PARITY_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_FAULT:
 			DEBUG("STLINK_SWD_DP_FAULT");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_ERROR:
 			DEBUG("STLINK_SWD_DP_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_PARITY_ERROR:
 			DEBUG("STLINK_SWD_DP_PARITY_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_WDATA_ERROR:
 			DEBUG("STLINK_SWD_AP_WDATA_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_STICKY_ERROR:
 			DEBUG("STLINK_SWD_AP_STICKY_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_STICKYORUN_ERROR:
 			DEBUG("STLINK_SWD_AP_STICKYORUN_ERROR");
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 		default:
 			DEBUG("unknown/unexpected STLINK status code 0x%x", data[0]);
-			return ERROR_FAIL;
+			return STLINK_ERROR_FAIL;
 	}
 }
 
 static void stlink_version(void)
 {
-	uint8_t cmd[1] = {STLINK_GET_VERSION};
+	uint8_t cmd[16] = {STLINK_GET_VERSION};
 	uint8_t data[16];
     int size = send_recv(cmd, 1, data, 6);
     if (size == -1) {
@@ -405,7 +404,7 @@ static void stlink_version(void)
 	Stlink.ver_stlink = (version >> 12) & 0x0f;
 	if (Stlink.ver_stlink == 3) {
 		cmd[0] = STLINK_APIV3_GET_VERSION_EX;
-		int size = send_recv(cmd, 1, data, 16);
+		int size = send_recv(cmd, 16, data, 16);
 		if (size == -1) {
 			printf("[!] send_recv STLINK_APIV3_GET_VERSION_EX\n");
 		}
@@ -631,4 +630,35 @@ uint32_t stlink_read_coreid(void)
 	uint32_t id =  data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
 	DEBUG("Read Core ID: 0x%08" PRIx32 "\n", id);
 	return id;
+}
+
+int stlink_read_dp_register(uint16_t addr, uint32_t *res)
+{
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_APIV2_READ_DAP_REG,
+					  STLINK_DEBUG_PORT_ACCESS & 0xff,
+					  STLINK_DEBUG_PORT_ACCESS >> 8,
+					  addr & 0xff, addr >> 8};
+	uint8_t data[8];
+	send_recv(cmd, 16, data, 8);
+	stlink_usb_error_check(data);
+	uint32_t ret = data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
+	DEBUG("Read DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32" \n",
+		  addr, ret);
+	*res = ret;
+	return stlink_usb_error_check(data);
+}
+
+int stlink_write_dp_register(uint16_t addr, uint32_t val)
+{
+	uint8_t cmd[16] = {
+		STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITE_DAP_REG,
+		STLINK_DEBUG_PORT_ACCESS & 0xff, STLINK_DEBUG_PORT_ACCESS >> 8,
+		addr & 0xff, addr >> 8,
+		val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff, (val >> 24) & 0xff};
+	uint8_t data[2];
+	send_recv(cmd, 16, data, 2);
+	DEBUG("Write DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32
+		  " \n", addr, val);
+	return stlink_usb_error_check(data);
 }
