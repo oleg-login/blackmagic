@@ -1,5 +1,6 @@
 SYS = $(shell $(CC) -dumpmachine)
 CFLAGS += -DLIBFTDI
+CFLAGS +=-I ./target
 LDFLAGS += -lusb-1.0
 ifneq (, $(findstring mingw, $(SYS)))
 LDFLAGS += -lws2_32

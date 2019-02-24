@@ -46,6 +46,7 @@
 #define STLINK_SWIM_BUSY               0x01
 #define STLINK_DEBUG_ERR_OK            0x80
 #define STLINK_DEBUG_ERR_FAULT         0x81
+#define STLINK_JTAG_GET_IDCODE_ERROR   0x09
 #define STLINK_SWD_AP_WAIT             0x10
 #define STLINK_SWD_AP_FAULT            0x11
 #define STLINK_SWD_AP_ERROR            0x12
@@ -337,6 +338,9 @@ static int stlink_usb_error_check(uint8_t *data)
 		case STLINK_DEBUG_ERR_FAULT:
 			DEBUG("SWD fault response (0x%x)", STLINK_DEBUG_ERR_FAULT);
 			return ERROR_FAIL;
+		case STLINK_JTAG_GET_IDCODE_ERROR:
+			DEBUG("Failure reading IDCODE");
+			return ERROR_FAIL;
 		case STLINK_SWD_AP_WAIT:
 			DEBUG("wait status SWD_AP_WAIT (0x%x)", STLINK_SWD_AP_WAIT);
 			return ERROR_WAIT;
@@ -605,3 +609,26 @@ void stlink_srst_set_val(bool assert)
 	stlink_usb_error_check(data);
 }
 
+void stlink_enter_debug_swd(void)
+{
+	uint8_t cmd[3] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_APIV2_ENTER,
+					  STLINK_DEBUG_ENTER_SWD_NO_RESET};
+	uint8_t data[2];
+	DEBUG("Enter SWD\n");
+	send_recv(cmd, 3, data, 2);
+	stlink_usb_error_check(data);
+}
+
+uint32_t stlink_read_coreid(void)
+{
+	uint8_t cmd[2] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_APIV2_READ_IDCODES};
+	uint8_t data[12];
+	DEBUG("Read Core ID\n");
+	send_recv(cmd, 2, data, 12);
+	stlink_usb_error_check(data);
+	uint32_t id =  data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
+	DEBUG("Read Core ID: 0x%08" PRIx32 "\n", id);
+	return id;
+}
