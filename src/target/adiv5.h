@@ -145,7 +145,7 @@ static inline uint32_t adiv5_dp_read(ADIv5_DP_t *dp, uint16_t addr)
 #include <stlinkv2.h>
 	uint32_t res;
 	(void)dp;
-	stlink_read_dp_register(addr, &res);
+	stlink_read_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, &res);
 	return res;
 #endif
 }

@@ -157,7 +157,6 @@
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_HIGH  0x01
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_PULSE 0x02
 
-#define STLINK_DEBUG_PORT_ACCESS            0xffff
 
 #define STLINK_TRACE_SIZE               4096
 #define STLINK_TRACE_MAX_HZ             2000000
@@ -633,14 +632,14 @@ uint32_t stlink_read_coreid(void)
 }
 
 static uint8_t dap_select = 0;
-int stlink_read_dp_register(uint16_t addr, uint32_t *res)
+int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 {
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_READ_DAP_REG,
-					  STLINK_DEBUG_PORT_ACCESS & 0xff,
-					  STLINK_DEBUG_PORT_ACCESS >> 8,
+					  port & 0xff,
+					  port >> 8,
 					  0, addr >> 8};
-	if (dap_select)
+	if (port == STLINK_DEBUG_PORT_ACCESS  && dap_select)
 		cmd[4] = ((dap_select & 0xf) << 4) | (addr & 0xf);
 	else
 		cmd[4] = addr & 0xff;
@@ -654,16 +653,16 @@ int stlink_read_dp_register(uint16_t addr, uint32_t *res)
 	return stlink_usb_error_check(data);
 }
 
-int stlink_write_dp_register(uint16_t addr, uint32_t val)
+int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 {
-	if (addr == 8) {
+	if (port == STLINK_DEBUG_PORT_ACCESS && addr == 8) {
 		dap_select = val;
 		DEBUG("Caching SELECT 0x%02" PRIx32 "\n", val);
 		return STLINK_ERROR_OK;
 	} else {
 		uint8_t cmd[16] = {
 			STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITE_DAP_REG,
-			STLINK_DEBUG_PORT_ACCESS & 0xff, STLINK_DEBUG_PORT_ACCESS >> 8,
+			port & 0xff, port >> 8,
 			addr & 0xff, addr >> 8,
 			val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff,
 			(val >> 24) & 0xff};

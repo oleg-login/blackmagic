@@ -72,11 +72,12 @@ static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 	uint32_t response = 0;
 	int res;
 	if (RnW) {
-		res = stlink_read_dp_register(addr, &response);
+		res = stlink_read_dp_register(
+			STLINK_DEBUG_PORT_ACCESS, addr, &response);
 		DEBUG("SWD read addr %04" PRIx16 ": %08" PRIx32 "\n", addr, response);
 	} else {
 		DEBUG("SWD write addr %04" PRIx16 ": %08" PRIx32 "\n", addr, value);
-		res = stlink_write_dp_register(addr, value);
+		res = stlink_write_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, value);
 	}
 	if (res == STLINK_ERROR_WAIT)
 		raise_exception(EXCEPTION_TIMEOUT, "SWDP ACK timeout");
