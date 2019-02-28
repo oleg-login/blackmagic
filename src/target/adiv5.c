@@ -240,8 +240,8 @@ void adiv5_ap_unref(ADIv5_AP_t *ap)
 void adiv5_dp_write(ADIv5_DP_t *dp, uint16_t addr, uint32_t value)
 {
 #if defined(STLINKV2)
-#include <stlinkv2.h>
 	(void)dp;
+#include <stlinkv2.h>
 	stlink_write_dp_register(addr, value);
 #else
 	dp->low_access(dp, ADIV5_LOW_WRITE, addr, value);
