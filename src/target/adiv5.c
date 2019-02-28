@@ -636,7 +636,7 @@ void
 adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
 {
 	(void)ap;
-	stlink_readmem32(dest, src, len);
+	stlink_readmem(dest, src, len);
 }
 
 void
@@ -665,7 +665,7 @@ adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
 }
 void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
-	DEBUG("Write d AP %d addr %04x, val %08" PRIx32 "\n", ap->apsel, addr, value);
+	DEBUG("Write AP %d addr %04x, val %08" PRIx32 "\n", ap->apsel, addr, value);
 	stlink_write_dp_register(ap->apsel, addr, value);
 }
 

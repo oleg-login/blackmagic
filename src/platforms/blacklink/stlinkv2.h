@@ -31,11 +31,14 @@ void stlink_enter_debug_swd(void);
 uint32_t stlink_read_coreid(void);
 int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res);
 int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val);
-void stlink_open_ap(uint8_t ap);
+int stlink_open_ap(uint8_t ap);
 void stlink_close_ap(uint8_t ap);
-void stlink_readmem32(void *dest, uint32_t src, size_t len);
+void stlink_readmem(void *dest, uint32_t src, size_t len);
 int stlink_usb_get_rw_status(void);
 void stlink_writemem8 (uint32_t addr, size_t len, uint8_t  *buffer);
 void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer);
 void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer);
+void stlink_regs_read(void *data);
+uint32_t stlink_reg_read(int idx);
+void stlink_reg_write(int num, uint32_t val);
 #endif

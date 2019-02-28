@@ -678,7 +678,7 @@ int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 	}
 }
 
-void stlink_open_ap(uint8_t ap)
+int stlink_open_ap(uint8_t ap)
 {
        uint8_t cmd[3] = {
                STLINK_DEBUG_COMMAND,
@@ -688,7 +688,7 @@ void stlink_open_ap(uint8_t ap)
        uint8_t data[2];
        send_recv(cmd, 3, data, 2);
        DEBUG("Open AP %d\n", ap);
-       stlink_usb_error_check(data);
+       return stlink_usb_error_check(data);
 }
 
 void stlink_close_ap(uint8_t ap)
@@ -713,16 +713,30 @@ int stlink_usb_get_rw_status(void)
 	send_recv(cmd, 2, data, 12);
 	return stlink_usb_error_check(data);
 }
-void stlink_readmem32(void *dest, uint32_t src, size_t len)
+
+void stlink_readmem(void *dest, uint32_t src, size_t len)
 {
-	DEBUG("Mem Read32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, src);
-	if (len % 4 || src % 4) {
-		DEBUG("bad alignment\n");
-		return;
+	uint8_t type;
+	char *CMD;
+	if (src & 1 || len & 1) {
+		CMD = "READMEM_8BIT";
+		type = STLINK_DEBUG_READMEM_8BIT;
+		if (len > Stlink.block_size) {
+			DEBUG(" Too large!\n");
+			return;
+		}
+	} else if (src & 3 || len & 3) {
+		CMD = "READMEM_16BIT";
+		type = STLINK_DEBUG_APIV2_READMEM_16BIT;
+	} else {
+		CMD = "READMEM_32BIT";
+		type = STLINK_DEBUG_READMEM_32BIT;
+
 	}
+	DEBUG("%s len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", CMD, len, src);
 	uint8_t cmd[8] = {
 		STLINK_DEBUG_COMMAND,
-		STLINK_DEBUG_READMEM_32BIT,
+		type,
 		src & 0xff, (src >>  8) & 0xff, (src >> 16) & 0xff,
 		(src >> 24) & 0xff,
 		len & 0xff, len >> 8};
@@ -732,7 +746,9 @@ void stlink_readmem32(void *dest, uint32_t src, size_t len)
 		DEBUG("%02x", *p++);
 	}
 	DEBUG("\n");
+	stlink_usb_get_rw_status();
 }
+
 void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 {
 	DEBUG("Mem Write8 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
@@ -791,4 +807,35 @@ void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 	send_recv(cmd, 8, NULL, 0);
 	send_recv((void*)buffer, len, NULL, 0);
 	stlink_usb_get_rw_status();
+}
+
+void stlink_regs_read(void *data)
+{
+	uint8_t cmd[8] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READALLREGS};
+	uint8_t res[88];
+	send_recv(cmd, 8, res, 88);
+	stlink_usb_error_check(res);
+	memcpy(data, res + 4, 84);
+}
+
+uint32_t stlink_reg_read(int num)
+{
+	uint8_t cmd[8] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READREG, num};
+	uint8_t res[8];
+	send_recv(cmd, 8, res, 8);
+	stlink_usb_error_check(res);
+	uint32_t ret = res[0] | res[1] << 8 | res[2] << 16 | res[3] << 24;
+	return ret;
+}
+
+void stlink_reg_write(int num, uint32_t val)
+{
+	uint8_t cmd[7] = {
+		STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITEREG, num,
+		val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff,
+		(val >> 24) & 0xff
+	};
+	uint8_t res[2];
+	send_recv(cmd, 7, res, 2);
+	stlink_usb_error_check(res);
 }
