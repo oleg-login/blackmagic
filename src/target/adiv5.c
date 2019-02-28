@@ -239,7 +239,13 @@ void adiv5_ap_unref(ADIv5_AP_t *ap)
 
 void adiv5_dp_write(ADIv5_DP_t *dp, uint16_t addr, uint32_t value)
 {
+#if defined(STLINKV2)
+#include <stlinkv2.h>
+	(void)dp;
+	stlink_write_dp_register(addr, value);
+#else
 	dp->low_access(dp, ADIV5_LOW_WRITE, addr, value);
+#endif
 }
 
 static uint32_t adiv5_mem_read32(ADIv5_AP_t *ap, uint32_t addr)
@@ -397,7 +403,7 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 {
 	volatile bool probed = false;
 	volatile uint32_t ctrlstat = 0;
-
+	DEBUG("adiv5_dp_init\n");
 	adiv5_dp_ref(dp);
 
 	volatile struct exception e;
@@ -442,16 +448,18 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 
 	dp->dp_idcode =  adiv5_dp_read(dp, ADIV5_DP_IDCODE);
 	if ((dp->dp_idcode & ADIV5_DP_VERSION_MASK) == ADIV5_DPv2) {
-		DEBUG("TARGETID\n");
 		/* Read TargetID. Can be done with device in WFI, sleep or reset!*/
 		adiv5_dp_write(dp, ADIV5_DP_SELECT, ADIV5_DP_BANK2);
 		dp->targetid = adiv5_dp_read(dp, ADIV5_DP_CTRLSTAT);
 		adiv5_dp_write(dp, ADIV5_DP_SELECT, ADIV5_DP_BANK0);
 		DEBUG("TARGETID %08" PRIx32 "\n", dp->targetid);
-		exit(-1);
 	}
 	/* Probe for APs on this DP */
 	for(int i = 0; i < 256; i++) {
+#if defined(STLINKV2)
+		extern void stlink_open_ap(uint8_t ap);
+		stlink_open_ap(i);
+#endif
 		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
 		if (ap == NULL)
 			continue;
@@ -598,7 +606,7 @@ adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
 	enum align align = MIN(ALIGNOF(dest), ALIGNOF(len));
 	adiv5_mem_write_sized(ap, dest, src, len, align);
 }
-
+#if !defined(STLINKV2)
 void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
 	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
@@ -614,3 +622,20 @@ uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 	ret = adiv5_dp_read(ap->dp, addr);
 	return ret;
 }
+#else
+void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
+{
+	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
+			((uint32_t)ap->apsel << 24)|(addr & 0xF0));
+	adiv5_dp_write(ap->dp, addr, value);
+}
+
+uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
+{
+	uint32_t ret;
+	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
+			((uint32_t)ap->apsel << 24)|(addr & 0xF0));
+	ret = adiv5_dp_read(ap->dp, addr);
+	return ret;
+}
+#endif

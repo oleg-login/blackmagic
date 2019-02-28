@@ -29,3 +29,4 @@ void stlink_enter_debug_swd(void);
 uint32_t stlink_read_coreid(void);
 int stlink_read_dp_register(uint16_t addr, uint32_t *res);
 int stlink_write_dp_register(uint16_t addr, uint32_t val);
+void stlink_open_ap(uint8_t ap);

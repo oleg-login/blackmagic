@@ -632,13 +632,18 @@ uint32_t stlink_read_coreid(void)
 	return id;
 }
 
+static uint8_t dap_select = 0;
 int stlink_read_dp_register(uint16_t addr, uint32_t *res)
 {
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_READ_DAP_REG,
 					  STLINK_DEBUG_PORT_ACCESS & 0xff,
 					  STLINK_DEBUG_PORT_ACCESS >> 8,
-					  addr & 0xff, addr >> 8};
+					  0, addr >> 8};
+	if (dap_select)
+		cmd[4] = ((dap_select & 0xf) << 4) | (addr & 0xf);
+	else
+		cmd[4] = addr & 0xff;
 	uint8_t data[8];
 	send_recv(cmd, 16, data, 8);
 	stlink_usb_error_check(data);
@@ -651,14 +656,34 @@ int stlink_read_dp_register(uint16_t addr, uint32_t *res)
 
 int stlink_write_dp_register(uint16_t addr, uint32_t val)
 {
-	uint8_t cmd[16] = {
-		STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITE_DAP_REG,
-		STLINK_DEBUG_PORT_ACCESS & 0xff, STLINK_DEBUG_PORT_ACCESS >> 8,
-		addr & 0xff, addr >> 8,
-		val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff, (val >> 24) & 0xff};
-	uint8_t data[2];
-	send_recv(cmd, 16, data, 2);
-	DEBUG("Write DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32
-		  " \n", addr, val);
-	return stlink_usb_error_check(data);
+	if (addr == 8) {
+		dap_select = val;
+		DEBUG("Caching SELECT 0x%02" PRIx32 "\n", val);
+		return STLINK_ERROR_OK;
+	} else {
+		uint8_t cmd[16] = {
+			STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITE_DAP_REG,
+			STLINK_DEBUG_PORT_ACCESS & 0xff, STLINK_DEBUG_PORT_ACCESS >> 8,
+			addr & 0xff, addr >> 8,
+			val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff,
+			(val >> 24) & 0xff};
+		uint8_t data[2];
+		send_recv(cmd, 16, data, 2);
+		DEBUG("Write DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32
+			  " \n", addr, val);
+		return stlink_usb_error_check(data);
+	}
+}
+
+void stlink_open_ap(uint8_t ap)
+{
+       uint8_t cmd[3] = {
+               STLINK_DEBUG_COMMAND,
+               STLINK_DEBUG_APIV2_INIT_AP,
+               ap,
+       };
+       uint8_t data[2];
+       send_recv(cmd, 3, data, 2);
+       DEBUG("Open AP %d\n", ap);
+       stlink_usb_error_check(data);
 }
