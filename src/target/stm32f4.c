@@ -176,6 +176,7 @@ char *stm32f4_get_chip_name(uint32_t idcode)
 	case ID_STM32F74X: /* F74x RM0385 Rev.4 */
 		return "STM32F74x";
 	case ID_STM32F76X: /* F76x F77x RM0410 */
+		DEBUG("STM32F76x\n");
 		return "STM32F76x";
 	case ID_STM32F72X: /* F72x F73x RM0431 */
 		return "STM32F72x";

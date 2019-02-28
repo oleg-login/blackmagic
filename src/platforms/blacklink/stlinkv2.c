@@ -20,6 +20,7 @@
  * https://github.com/texane/stlink.git
  * git://git.code.sf.net/p/openocd/code
  * https://github.com/pavelrevak/pystlink
+ * https://github.com/pavelrevak/pystlink
  *
  * with some contribution.
  */
@@ -184,6 +185,7 @@ typedef struct {
 	uint8_t      ver_mass;
 	uint8_t      ver_swim;
 	uint8_t      ver_bridge;
+	uint16_t     block_size;
 	libusb_device_handle *handle;
 	struct libusb_transfer* req_trans;
 	struct libusb_transfer* rep_trans;
@@ -411,12 +413,14 @@ static void stlink_version(void)
 		Stlink.ver_jtag  =  data[2];
 		Stlink.ver_mass  =  data[3];
 		Stlink.ver_bridge = data[4];
+		Stlink.block_size = 512;
 	} else {
 		Stlink.ver_jtag  =  (version >>  6) & 0x3f;
 		if ((Stlink.pid == PRODUCT_ID_STLINKV21_MSD) ||
 			(Stlink.pid == PRODUCT_ID_STLINKV21)) {
 			Stlink.ver_mass  =  (version >>  0) & 0x3f;
 		}
+		Stlink.block_size = 64;
 	}
 	DEBUG("V%dJ%d",Stlink.ver_stlink, Stlink.ver_jtag);
 	if (Stlink.ver_api == 30)
@@ -685,4 +689,106 @@ void stlink_open_ap(uint8_t ap)
        send_recv(cmd, 3, data, 2);
        DEBUG("Open AP %d\n", ap);
        stlink_usb_error_check(data);
+}
+
+void stlink_close_ap(uint8_t ap)
+{
+       uint8_t cmd[3] = {
+               STLINK_DEBUG_COMMAND,
+               STLINK_DEBUG_APIV2_CLOSE_AP_DBG,
+               ap,
+       };
+       uint8_t data[2];
+       send_recv(cmd, 3, data, 2);
+       DEBUG("Close AP %d\n", ap);
+       stlink_usb_error_check(data);
+}
+int stlink_usb_get_rw_status(void)
+{
+	uint8_t cmd[2] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_APIV2_GETLASTRWSTATUS2
+	};
+	uint8_t data[12];
+	send_recv(cmd, 2, data, 12);
+	return stlink_usb_error_check(data);
+}
+void stlink_readmem32(void *dest, uint32_t src, size_t len)
+{
+	DEBUG("Mem Read32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, src);
+	if (len % 4 || src % 4) {
+		DEBUG("bad alignment\n");
+		return;
+	}
+	uint8_t cmd[8] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_READMEM_32BIT,
+		src & 0xff, (src >>  8) & 0xff, (src >> 16) & 0xff,
+		(src >> 24) & 0xff,
+		len & 0xff, len >> 8};
+	send_recv(cmd, 8, dest, len);
+	uint8_t *p = (uint8_t*)dest;
+	for (size_t i = 0; i > len ; i++) {
+		DEBUG("%02x", *p++);
+	}
+	DEBUG("\n");
+}
+void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
+{
+	DEBUG("Mem Write8 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	for (size_t t = 0; t < len; t++) {
+		DEBUG("%02x", buffer[t]);
+	}
+	while (len) {
+		size_t length;
+		if (len > Stlink.block_size)
+			length = Stlink.block_size;
+		else
+			length = len;
+		uint8_t cmd[8] = {
+			STLINK_DEBUG_COMMAND,
+			STLINK_DEBUG_WRITEMEM_8BIT,
+			addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
+			(addr >> 24) & 0xff,
+			length & 0xff, length >> 8};
+		send_recv(cmd, 8, NULL, 0);
+		send_recv((void*)buffer, length, NULL, 0);
+		stlink_usb_get_rw_status();
+		len -= length;
+		addr += length;
+	}
+}
+
+void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
+{
+	DEBUG("Mem Write16 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	for (size_t t = 0; t < len; t++) {
+		DEBUG("%04x", buffer[t]);
+	}
+	uint8_t cmd[8] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_APIV2_WRITEMEM_16BIT,
+		addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
+		(addr >> 24) & 0xff,
+		len & 0xff, len >> 8};
+	send_recv(cmd, 8, NULL, 0);
+	send_recv((void*)buffer, len, NULL, 0);
+	stlink_usb_get_rw_status();
+}
+
+void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
+{
+	DEBUG("Mem Write32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	for (size_t t = 0; t < len; t++) {
+		DEBUG("%04x", buffer[t]);
+	}
+	uint8_t cmd[8] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_WRITEMEM_32BIT,
+		addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
+		(addr >> 24) & 0xff,
+		len & 0xff, len >> 8};
+	send_recv(cmd, 8, NULL, 0);
+	send_recv((void*)buffer, len, NULL, 0);
+	stlink_usb_get_rw_status();
 }

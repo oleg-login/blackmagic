@@ -8,7 +8,7 @@ MAKEFLAGS += --no-print-dir
 Q := @
 endif
 
-OPT_FLAGS ?= -O2
+OPT_FLAGS ?= -Og -g
 
 CFLAGS += -Wall -Wextra -Werror -Wno-char-subscripts -Wno-cast-function-type \
 	$(OPT_FLAGS) -std=gnu99 -g3 -MD \

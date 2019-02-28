@@ -232,6 +232,7 @@ void adiv5_dp_unref(ADIv5_DP_t *dp)
 void adiv5_ap_unref(ADIv5_AP_t *ap)
 {
 	if (--(ap->refcnt) == 0) {
+		DEBUG("Unref AP\n");
 		adiv5_dp_unref(ap->dp);
 		free(ap);
 	}
@@ -241,7 +242,6 @@ void adiv5_dp_write(ADIv5_DP_t *dp, uint16_t addr, uint32_t value)
 {
 #if defined(STLINKV2)
 	(void)dp;
-#include <stlinkv2.h>
 	stlink_write_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, value);
 #else
 	dp->low_access(dp, ADIV5_LOW_WRITE, addr, value);
@@ -252,6 +252,8 @@ static uint32_t adiv5_mem_read32(ADIv5_AP_t *ap, uint32_t addr)
 {
 	uint32_t ret;
 	adiv5_mem_read(ap, &ret, addr, sizeof(ret));
+	DEBUG("adiv5_mem_read32 at 0x%08" PRIx32 ": 0x%08" PRIx32 "\n",
+		  addr, ret);
 	return ret;
 }
 
@@ -394,7 +396,6 @@ ADIv5_AP_t *adiv5_new_ap(ADIv5_DP_t *dp, uint8_t apsel)
 
 	DEBUG(" AP %3d: IDR=%08"PRIx32" CFG=%08"PRIx32" BASE=%08"PRIx32" CSW=%08"PRIx32"\n",
 	      apsel, ap->idr, ap->cfg, ap->base, ap->csw);
-
 	return ap;
 }
 
@@ -457,13 +458,20 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 	/* Probe for APs on this DP */
 	for(int i = 0; i < 256; i++) {
 #if defined(STLINKV2)
+		if (i > 7)
+			break; /* Only 8 APs on STLINKV2*/
 		extern void stlink_open_ap(uint8_t ap);
 		stlink_open_ap(i);
-#endif
+		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
+		if (ap == NULL) {
+			stlink_close_ap(i);
+			continue;
+		}
+#else
 		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
 		if (ap == NULL)
 			continue;
-
+#endif
 		extern void kinetis_mdm_probe(ADIv5_AP_t *);
 		kinetis_mdm_probe(ap);
 
@@ -471,6 +479,7 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 		nrf51_mdm_probe(ap);
 
 		if (ap->base == 0xffffffff) {
+			DEBUG("Useless AP %d\n", i);
 			/* No debug entries... useless AP */
 			adiv5_ap_unref(ap);
 			continue;
@@ -494,6 +503,7 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 #define ALIGNOF(x) (((x) & 3) == 0 ? ALIGN_WORD : \
                     (((x) & 1) == 0 ? ALIGN_HALFWORD : ALIGN_BYTE))
 
+#if !defined(STLINKV2)
 /* Program the CSW and TAR for sequencial access at a given width */
 static void ap_mem_access_setup(ADIv5_AP_t *ap, uint32_t addr, enum align align)
 {
@@ -606,7 +616,6 @@ adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
 	enum align align = MIN(ALIGNOF(dest), ALIGNOF(len));
 	adiv5_mem_write_sized(ap, dest, src, len, align);
 }
-#if !defined(STLINKV2)
 void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
 	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
@@ -623,19 +632,48 @@ uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 	return ret;
 }
 #else
+void
+adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
+{
+	(void)ap;
+	stlink_readmem32(dest, src, len);
+}
+
+void
+adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
+					  size_t len, enum align align)
+{
+	(void)ap;
+	DEBUG("mem write\n");
+	switch(align) {
+	case ALIGN_BYTE: stlink_writemem8(dest, len, (uint8_t *) src);
+		break;
+	case ALIGN_HALFWORD: stlink_writemem16(dest, len, (uint16_t *) src);
+		break;
+	case ALIGN_WORD: stlink_writemem32(dest, len, (uint32_t *) src);
+		break;
+	case ALIGN_DWORD: stlink_writemem32(dest, len, (uint32_t *) src);
+		break;
+	}
+}
+
+void
+adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
+{
+	enum align align = MIN(ALIGNOF(dest), ALIGNOF(len));
+	adiv5_mem_write_sized(ap, dest, src, len, align);
+}
 void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
-	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
-			((uint32_t)ap->apsel << 24)|(addr & 0xF0));
-	adiv5_dp_write(ap->dp, addr, value);
+	DEBUG("Write d AP %d addr %04x, val %08" PRIx32 "\n", ap->apsel, addr, value);
+	stlink_write_dp_register(ap->apsel, addr, value);
 }
 
 uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 {
 	uint32_t ret;
-	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
-			((uint32_t)ap->apsel << 24)|(addr & 0xF0));
-	ret = adiv5_dp_read(ap->dp, addr);
+	DEBUG("Read AP %d addr %04x\n", ap->apsel, addr);
+	stlink_read_dp_register(ap->apsel, addr, &ret);
 	return ret;
 }
 #endif
