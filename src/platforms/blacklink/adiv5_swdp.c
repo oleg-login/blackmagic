@@ -42,7 +42,8 @@ int adiv5_swdp_scan(void)
 {
 	target_list_free();
 	ADIv5_DP_t *dp = (void*)calloc(1, sizeof(*dp));
-	stlink_enter_debug_swd();
+	if (stlink_enter_debug_swd())
+		return 0;
 	dp->idcode = stlink_read_coreid();
 	dp->dp_read = adiv5_swdp_read;
 	dp->error = adiv5_swdp_error;

@@ -460,7 +460,6 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 #if defined(STLINKV2)
 		if (i > 7)
 			break; /* Only 8 APs on STLINKV2*/
-		extern void stlink_open_ap(uint8_t ap);
 		stlink_open_ap(i);
 		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
 		if (ap == NULL) {

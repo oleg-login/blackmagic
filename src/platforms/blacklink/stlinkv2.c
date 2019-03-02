@@ -212,12 +212,17 @@ struct trans_ctx {
     volatile unsigned long flags;
 };
 
+static int debug_level = 0;
+# define DEBUG_STLINK if (debug_level > 1) printf
+# define DEBUG_USB    if (debug_level > 2) printf
+
 static void on_trans_done(struct libusb_transfer * trans)
 {
     struct trans_ctx * const ctx = trans->user_data;
 
     if (trans->status != LIBUSB_TRANSFER_COMPLETED)
     {
+		DEBUG("on_trans_done: ");
         if(trans->status == LIBUSB_TRANSFER_TIMED_OUT)
         {
             DEBUG("Timeout\n");
@@ -292,11 +297,11 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 								  NULL, NULL,
 								  0
 			);
-		DEBUG("  Send (%ld): ", txsize);
+		DEBUG_USB("  Send (%ld): ", txsize);
 		for (size_t z = 0; z < txsize && z < 32 ; z++)
-			DEBUG("%02x", txbuf[z]);
+			DEBUG_USB("%02x", txbuf[z]);
 		if (submit_wait(Stlink.req_trans)) {
-			DEBUG("clear 2\n");
+			DEBUG_USB("clear 2\n");
 			libusb_clear_halt(Stlink.handle,2);
 			return -1;
 		}
@@ -317,12 +322,12 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 		if (res >0) {
 			int i;
 			uint8_t *p = rxbuf;
-			DEBUG(" Rec (%ld/%d)", rxsize, res);
+			DEBUG_USB(" Rec (%ld/%d)", rxsize, res);
 			for (i = 0; i < res && i < 32 ; i++)
-				DEBUG("%02x", p[i]);
+				DEBUG_USB("%02x", p[i]);
 		}
 	}
-	DEBUG("\n");
+	DEBUG_USB("\n");
 	return res;
 }
 
@@ -336,22 +341,22 @@ static int stlink_usb_error_check(uint8_t *data)
 		case STLINK_DEBUG_ERR_OK:
 			return STLINK_ERROR_OK;
 		case STLINK_DEBUG_ERR_FAULT:
-			DEBUG("SWD fault response (0x%x)", STLINK_DEBUG_ERR_FAULT);
+			DEBUG("SWD fault response (0x%x)\n", STLINK_DEBUG_ERR_FAULT);
 			return STLINK_ERROR_FAIL;
 		case STLINK_JTAG_GET_IDCODE_ERROR:
-			DEBUG("Failure reading IDCODE");
+			DEBUG("Failure reading IDCODE\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_WAIT:
-			DEBUG("wait status SWD_AP_WAIT (0x%x)", STLINK_SWD_AP_WAIT);
+			DEBUG("wait status SWD_AP_WAIT (0x%x)\n", STLINK_SWD_AP_WAIT);
 			return STLINK_ERROR_WAIT;
 		case STLINK_SWD_DP_WAIT:
-			DEBUG("wait status SWD_DP_WAIT (0x%x)", STLINK_SWD_DP_WAIT);
+			DEBUG("wait status SWD_DP_WAIT (0x%x)\n", STLINK_SWD_DP_WAIT);
 			return STLINK_ERROR_WAIT;
 		case STLINK_JTAG_WRITE_ERROR:
-			DEBUG("Write error");
+			DEBUG("Write error\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_JTAG_WRITE_VERIF_ERROR:
-			DEBUG("Write verify error, ignoring");
+			DEBUG("Write verify error, ignoring\n");
 			return STLINK_ERROR_OK;
 		case STLINK_SWD_AP_FAULT:
 			/* git://git.ac6.fr/openocd commit 657e3e885b9ee10
@@ -359,34 +364,34 @@ static int stlink_usb_error_check(uint8_t *data)
 			 * Change in error status when reading outside RAM.
 			 * This fix allows CDT plugin to visualize memory.
 			 */
-			DEBUG("STLINK_SWD_AP_FAULT");
+			DEBUG("STLINK_SWD_AP_FAULT\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_ERROR:
-			DEBUG("STLINK_SWD_AP_ERROR");
+			DEBUG("STLINK_SWD_AP_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_PARITY_ERROR:
-			DEBUG("STLINK_SWD_AP_PARITY_ERROR");
+			DEBUG("STLINK_SWD_AP_PARITY_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_FAULT:
-			DEBUG("STLINK_SWD_DP_FAULT");
+			DEBUG("STLINK_SWD_DP_FAULT\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_ERROR:
-			DEBUG("STLINK_SWD_DP_ERROR");
+			DEBUG("STLINK_SWD_DP_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_DP_PARITY_ERROR:
-			DEBUG("STLINK_SWD_DP_PARITY_ERROR");
+			DEBUG("STLINK_SWD_DP_PARITY_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_WDATA_ERROR:
-			DEBUG("STLINK_SWD_AP_WDATA_ERROR");
+			DEBUG("STLINK_SWD_AP_WDATA_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_STICKY_ERROR:
-			DEBUG("STLINK_SWD_AP_STICKY_ERROR");
+			DEBUG("STLINK_SWD_AP_STICKY_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_SWD_AP_STICKYORUN_ERROR:
-			DEBUG("STLINK_SWD_AP_STICKYORUN_ERROR");
+			DEBUG("STLINK_SWD_AP_STICKYORUN_ERROR\n");
 			return STLINK_ERROR_FAIL;
 		default:
-			DEBUG("unknown/unexpected STLINK status code 0x%x", data[0]);
+			DEBUG("unknown/unexpected STLINK status code 0x%x\n", data[0]);
 			return STLINK_ERROR_FAIL;
 	}
 }
@@ -429,6 +434,7 @@ static void stlink_version(void)
  		DEBUG("S%d", Stlink.ver_swim);
 	else if (Stlink.ver_api == 21)
  		DEBUG("M%d", Stlink.ver_mass);
+	DEBUG("\n");
 }
 
 void stlink_leave_state(void)
@@ -472,7 +478,6 @@ const char *stlink_target_voltage(void)
 	sprintf(res, "%4.2fV", result);
 	return res;
 }
-
 void stlink_init(int argc, char **argv)
 {
 	libusb_device **devs, *dev;
@@ -483,10 +488,14 @@ void stlink_init(int argc, char **argv)
 	libusb_init(&Stlink.libusb_ctx);
 	char *serial = NULL;
 	int c;
-	while((c = getopt(argc, argv, "s:")) != -1) {
+	while((c = getopt(argc, argv, "s:v:")) != -1) {
 		switch(c) {
 		case 's':
 			serial = optarg;
+			break;
+		case 'v':
+			if (optarg)
+				debug_level = atoi(optarg);
 			break;
 		}
 	}
@@ -611,7 +620,7 @@ void stlink_srst_set_val(bool assert)
 	stlink_usb_error_check(data);
 }
 
-void stlink_enter_debug_swd(void)
+int stlink_enter_debug_swd(void)
 {
 	uint8_t cmd[3] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_ENTER,
@@ -619,7 +628,7 @@ void stlink_enter_debug_swd(void)
 	uint8_t data[2];
 	DEBUG("Enter SWD\n");
 	send_recv(cmd, 3, data, 2);
-	stlink_usb_error_check(data);
+	return stlink_usb_error_check(data);
 }
 
 uint32_t stlink_read_coreid(void)
@@ -651,7 +660,7 @@ int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 	send_recv(cmd, 16, data, 8);
 	stlink_usb_error_check(data);
 	uint32_t ret = data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
-	DEBUG("Read DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32" \n",
+	DEBUG_STLINK("Read DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32" \n",
 		  addr, ret);
 	*res = ret;
 	return stlink_usb_error_check(data);
@@ -661,7 +670,7 @@ int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 {
 	if (port == STLINK_DEBUG_PORT_ACCESS && addr == 8) {
 		dap_select = val;
-		DEBUG("Caching SELECT 0x%02" PRIx32 "\n", val);
+		DEBUG_STLINK("Caching SELECT 0x%02" PRIx32 "\n", val);
 		return STLINK_ERROR_OK;
 	} else {
 		uint8_t cmd[16] = {
@@ -672,7 +681,7 @@ int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 			(val >> 24) & 0xff};
 		uint8_t data[2];
 		send_recv(cmd, 16, data, 2);
-		DEBUG("Write DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32
+		DEBUG_STLINK("Write DP, Addr 0x%04" PRIx16 ": 0x%08" PRIx32
 			  " \n", addr, val);
 		return stlink_usb_error_check(data);
 	}
@@ -687,7 +696,7 @@ int stlink_open_ap(uint8_t ap)
        };
        uint8_t data[2];
        send_recv(cmd, 3, data, 2);
-       DEBUG("Open AP %d\n", ap);
+       DEBUG_STLINK("Open AP %d\n", ap);
        return stlink_usb_error_check(data);
 }
 
@@ -700,7 +709,7 @@ void stlink_close_ap(uint8_t ap)
        };
        uint8_t data[2];
        send_recv(cmd, 3, data, 2);
-       DEBUG("Close AP %d\n", ap);
+       DEBUG_STLINK("Close AP %d\n", ap);
        stlink_usb_error_check(data);
 }
 int stlink_usb_get_rw_status(void)
@@ -733,7 +742,7 @@ void stlink_readmem(void *dest, uint32_t src, size_t len)
 		type = STLINK_DEBUG_READMEM_32BIT;
 
 	}
-	DEBUG("%s len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", CMD, len, src);
+	DEBUG_STLINK("%s len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", CMD, len, src);
 	uint8_t cmd[8] = {
 		STLINK_DEBUG_COMMAND,
 		type,
@@ -743,17 +752,17 @@ void stlink_readmem(void *dest, uint32_t src, size_t len)
 	send_recv(cmd, 8, dest, len);
 	uint8_t *p = (uint8_t*)dest;
 	for (size_t i = 0; i > len ; i++) {
-		DEBUG("%02x", *p++);
+		DEBUG_STLINK("%02x", *p++);
 	}
-	DEBUG("\n");
+	DEBUG_STLINK("\n");
 	stlink_usb_get_rw_status();
 }
 
 void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 {
-	DEBUG("Mem Write8 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	DEBUG_STLINK("Mem Write8 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
 	for (size_t t = 0; t < len; t++) {
-		DEBUG("%02x", buffer[t]);
+		DEBUG_STLINK("%02x", buffer[t]);
 	}
 	while (len) {
 		size_t length;
@@ -777,7 +786,7 @@ void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 
 void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 {
-	DEBUG("Mem Write16 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	DEBUG_STLINK("Mem Write16 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
 	for (size_t t = 0; t < len; t++) {
 		DEBUG("%04x", buffer[t]);
 	}
@@ -794,7 +803,7 @@ void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 
 void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 {
-	DEBUG("Mem Write32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
+	DEBUG_STLINK("Mem Write32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
 	for (size_t t = 0; t < len; t++) {
 		DEBUG("%04x", buffer[t]);
 	}
