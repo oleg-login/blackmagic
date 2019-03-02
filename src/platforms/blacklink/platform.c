@@ -38,12 +38,14 @@ void platform_init(int argc, char **argv)
 	stlink_init(argc, argv);
 }
 
+static bool srst_status = false;
 void platform_srst_set_val(bool assert)
 {
 	stlink_srst_set_val(assert);
+	srst_status = assert;
 }
 
-bool platform_srst_get_val(void) { return false; }
+bool platform_srst_get_val(void) { return srst_status; }
 
 void platform_buffer_flush(void)
 {
