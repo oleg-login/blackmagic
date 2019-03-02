@@ -41,4 +41,7 @@ void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer);
 void stlink_regs_read(void *data);
 uint32_t stlink_reg_read(int idx);
 void stlink_reg_write(int num, uint32_t val);
+extern  int debug_level;
+# define DEBUG_STLINK if (debug_level > 1) printf
+# define DEBUG_USB    if (debug_level > 2) printf
 #endif

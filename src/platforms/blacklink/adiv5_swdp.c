@@ -31,12 +31,12 @@
 #include "target_internal.h"
 #include "stlinkv2.h"
 
-static uint32_t adiv5_swdp_read(ADIv5_DP_t *dp, uint16_t addr);
+static uint32_t stlink_swdp_read(ADIv5_DP_t *dp, uint16_t addr);
 
-static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
+static uint32_t stlink_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 				      uint16_t addr, uint32_t value);
-static uint32_t adiv5_swdp_error(ADIv5_DP_t *dp);
-static void adiv5_swdp_abort(ADIv5_DP_t *dp, uint32_t abort);
+static uint32_t stlink_swdp_error(ADIv5_DP_t *dp);
+static void stlink_swdp_abort(ADIv5_DP_t *dp, uint32_t abort);
 
 int adiv5_swdp_scan(void)
 {
@@ -45,31 +45,32 @@ int adiv5_swdp_scan(void)
 	if (stlink_enter_debug_swd())
 		return 0;
 	dp->idcode = stlink_read_coreid();
-	dp->dp_read = adiv5_swdp_read;
-	dp->error = adiv5_swdp_error;
-	dp->low_access = adiv5_swdp_low_access;
-	dp->abort = adiv5_swdp_abort;
+	dp->dp_read = stlink_swdp_read;
+	dp->error = stlink_swdp_error;
+	dp->low_access = stlink_swdp_low_access;
+	dp->abort = stlink_swdp_abort;
 
-	adiv5_swdp_error(dp);
+	stlink_swdp_error(dp);
 	adiv5_dp_init(dp);
 
 	return target_list?1:0;
 	return 0;
 }
-static uint32_t adiv5_swdp_read(ADIv5_DP_t *dp, uint16_t addr)
+
+static uint32_t stlink_swdp_read(ADIv5_DP_t *dp, uint16_t addr)
 {
 	if (addr & ADIV5_APnDP) {
-		DEBUG ("AP read addr 0x%04" PRIx16 "\n", addr);
-		adiv5_swdp_low_access(dp, ADIV5_LOW_READ, addr, 0);
-		return adiv5_swdp_low_access(dp, ADIV5_LOW_READ,
+		DEBUG_STLINK("AP read addr 0x%04" PRIx16 "\n", addr);
+		stlink_swdp_low_access(dp, ADIV5_LOW_READ, addr, 0);
+		return stlink_swdp_low_access(dp, ADIV5_LOW_READ,
 		                           ADIV5_DP_RDBUFF, 0);
 	} else {
-		DEBUG ("DP read addr 0x%04" PRIx16 "\n", addr);
-		return adiv5_swdp_low_access(dp, ADIV5_LOW_READ, addr, 0);
+		DEBUG_STLINK("DP read addr 0x%04" PRIx16 "\n", addr);
+		return stlink_swdp_low_access(dp, ADIV5_LOW_READ, addr, 0);
 	}
 }
 
-static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
+static uint32_t stlink_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 				      uint16_t addr, uint32_t value)
 {
 	uint32_t response = 0;
@@ -77,9 +78,11 @@ static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 	if (RnW) {
 		res = stlink_read_dp_register(
 			STLINK_DEBUG_PORT_ACCESS, addr, &response);
-		DEBUG("SWD read addr %04" PRIx16 ": %08" PRIx32 "\n", addr, response);
+		DEBUG_STLINK("SWD read addr %04" PRIx16 ": %08" PRIx32 "\n",
+					 addr, response);
 	} else {
-		DEBUG("SWD write addr %04" PRIx16 ": %08" PRIx32 "\n", addr, value);
+		DEBUG_STLINK("SWD write addr %04" PRIx16 ": %08" PRIx32 "\n",
+					 addr, value);
 		res = stlink_write_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, value);
 	}
 	if (res == STLINK_ERROR_WAIT)
@@ -92,11 +95,11 @@ static uint32_t adiv5_swdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 	return response;
 }
 
-static uint32_t adiv5_swdp_error(ADIv5_DP_t *dp)
+static uint32_t stlink_swdp_error(ADIv5_DP_t *dp)
 {
 	uint32_t err, clr = 0;
 
-	err = adiv5_swdp_read(dp, ADIV5_DP_CTRLSTAT) &
+	err = stlink_swdp_read(dp, ADIV5_DP_CTRLSTAT) &
 		(ADIV5_DP_CTRLSTAT_STICKYORUN | ADIV5_DP_CTRLSTAT_STICKYCMP |
 		ADIV5_DP_CTRLSTAT_STICKYERR | ADIV5_DP_CTRLSTAT_WDATAERR);
 
@@ -115,7 +118,7 @@ static uint32_t adiv5_swdp_error(ADIv5_DP_t *dp)
 	return err;
 }
 
-static void adiv5_swdp_abort(ADIv5_DP_t *dp, uint32_t abort)
+static void stlink_swdp_abort(ADIv5_DP_t *dp, uint32_t abort)
 {
 	adiv5_dp_write(dp, ADIV5_DP_ABORT, abort);
 }

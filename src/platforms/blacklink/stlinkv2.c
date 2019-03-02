@@ -212,9 +212,7 @@ struct trans_ctx {
     volatile unsigned long flags;
 };
 
-static int debug_level = 0;
-# define DEBUG_STLINK if (debug_level > 1) printf
-# define DEBUG_USB    if (debug_level > 2) printf
+int debug_level = 0;
 
 static void on_trans_done(struct libusb_transfer * trans)
 {
@@ -636,7 +634,6 @@ uint32_t stlink_read_coreid(void)
 	uint8_t cmd[2] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_READ_IDCODES};
 	uint8_t data[12];
-	DEBUG("Read Core ID\n");
 	send_recv(cmd, 2, data, 12);
 	stlink_usb_error_check(data);
 	uint32_t id =  data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
@@ -788,7 +785,7 @@ void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 {
 	DEBUG_STLINK("Mem Write16 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
 	for (size_t t = 0; t < len; t++) {
-		DEBUG("%04x", buffer[t]);
+		DEBUG_STLINK("%04x", buffer[t]);
 	}
 	uint8_t cmd[8] = {
 		STLINK_DEBUG_COMMAND,
@@ -805,7 +802,7 @@ void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 {
 	DEBUG_STLINK("Mem Write32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
 	for (size_t t = 0; t < len; t++) {
-		DEBUG("%04x", buffer[t]);
+		DEBUG_STLINK("%04x", buffer[t]);
 	}
 	uint8_t cmd[8] = {
 		STLINK_DEBUG_COMMAND,
@@ -822,6 +819,7 @@ void stlink_regs_read(void *data)
 {
 	uint8_t cmd[8] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READALLREGS};
 	uint8_t res[88];
+	DEBUG_STLINK("Read all core registers\n");
 	send_recv(cmd, 8, res, 88);
 	stlink_usb_error_check(res);
 	memcpy(data, res + 4, 84);
@@ -834,6 +832,7 @@ uint32_t stlink_reg_read(int num)
 	send_recv(cmd, 8, res, 8);
 	stlink_usb_error_check(res);
 	uint32_t ret = res[0] | res[1] << 8 | res[2] << 16 | res[3] << 24;
+	DEBUG_STLINK("Read reg %02" PRId32 " val 0x%08" PRIx32 "\n", num, ret);
 	return ret;
 }
 
@@ -846,5 +845,6 @@ void stlink_reg_write(int num, uint32_t val)
 	};
 	uint8_t res[2];
 	send_recv(cmd, 7, res, 2);
+	DEBUG_STLINK("Write reg %02" PRId32 " val 0x%08" PRIx32 "\n", num, val);
 	stlink_usb_error_check(res);
 }

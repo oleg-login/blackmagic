@@ -252,8 +252,6 @@ static uint32_t adiv5_mem_read32(ADIv5_AP_t *ap, uint32_t addr)
 {
 	uint32_t ret;
 	adiv5_mem_read(ap, &ret, addr, sizeof(ret));
-	DEBUG("adiv5_mem_read32 at 0x%08" PRIx32 ": 0x%08" PRIx32 "\n",
-		  addr, ret);
 	return ret;
 }
 
@@ -368,17 +366,14 @@ static bool adiv5_component_probe(ADIv5_AP_t *ap, uint32_t addr)
 ADIv5_AP_t *adiv5_new_ap(ADIv5_DP_t *dp, uint8_t apsel)
 {
 	ADIv5_AP_t *ap, tmpap;
-	DEBUG("New AP %d\n", apsel);
 	/* Assume valid and try to read IDR */
 	memset(&tmpap, 0, sizeof(tmpap));
 	tmpap.dp = dp;
 	tmpap.apsel = apsel;
 	tmpap.idr = adiv5_ap_read(&tmpap, ADIV5_AP_IDR);
 
-	if(!tmpap.idr) /* IDR Invalid - Should we not continue here? */ {
-		DEBUG(" IDR Invalid \n");
+	if(!tmpap.idr) /* IDR Invalid - Should we not continue here? */
 		return NULL;
-	}
 	/* It's valid to so create a heap copy */
 	ap = malloc(sizeof(*ap));
 	memcpy(ap, &tmpap, sizeof(*ap));
@@ -404,7 +399,6 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 {
 	volatile bool probed = false;
 	volatile uint32_t ctrlstat = 0;
-	DEBUG("adiv5_dp_init\n");
 	adiv5_dp_ref(dp);
 
 	volatile struct exception e;
@@ -460,7 +454,8 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 #if defined(STLINKV2)
 		if (i > 7)
 			break; /* Only 8 APs on STLINKV2*/
-		stlink_open_ap(i);
+		if (stlink_open_ap(i))
+			break;
 		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
 		if (ap == NULL) {
 			stlink_close_ap(i);
@@ -643,7 +638,6 @@ adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
 					  size_t len, enum align align)
 {
 	(void)ap;
-	DEBUG("mem write\n");
 	switch(align) {
 	case ALIGN_BYTE: stlink_writemem8(dest, len, (uint8_t *) src);
 		break;
@@ -664,14 +658,12 @@ adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
 }
 void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
-	DEBUG("Write AP %d addr %04x, val %08" PRIx32 "\n", ap->apsel, addr, value);
 	stlink_write_dp_register(ap->apsel, addr, value);
 }
 
 uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 {
 	uint32_t ret;
-	DEBUG("Read AP %d addr %04x\n", ap->apsel, addr);
 	stlink_read_dp_register(ap->apsel, addr, &ret);
 	return ret;
 }
