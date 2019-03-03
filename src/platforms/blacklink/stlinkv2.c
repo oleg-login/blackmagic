@@ -196,7 +196,7 @@ stlink Stlink;
 static void exit_function(void)
 {
 	libusb_exit(NULL);
-	DEBUG("Normal termination\n");
+	DEBUG("Cleanup\n");
 }
 
 /* SIGTERM handler. */
@@ -252,7 +252,7 @@ static int submit_wait(struct libusb_transfer * trans) {
 	if ((error = libusb_submit_transfer(trans))) {
 		DEBUG("libusb_submit_transfer(%d): %s\n", error,
 			  libusb_strerror(error));
-		return -1;
+		exit(-1);
 	}
 
 	gettimeofday(&start, NULL);
