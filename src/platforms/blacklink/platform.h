@@ -33,9 +33,6 @@
 #	endif
 #endif
 
-#define FT2232_VID	0x0403
-#define FT2232_PID	0x6010
-
 #define PLATFORM_HAS_DEBUG
 
 #define SET_RUN_STATE(state)
@@ -47,11 +44,6 @@ extern struct ftdi_context *ftdic;
 void platform_buffer_flush(void);
 int platform_buffer_write(const uint8_t *data, int size);
 int platform_buffer_read(uint8_t *data, int size);
-
-static inline int platform_hwversion(void)
-{
-	        return 0;
-}
 
 #define MPSSE_TDI 2
 #define MPSSE_TDO 4

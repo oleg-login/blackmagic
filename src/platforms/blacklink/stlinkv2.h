@@ -24,6 +24,7 @@
 #define STLINK_DEBUG_PORT_ACCESS            0xffff
 
 void stlink_init(int argc, char **argv);
+int stlink_hwversion(void);
 void stlink_leave_state(void);
 const char *stlink_target_voltage(void);
 void stlink_srst_set_val(bool assert);

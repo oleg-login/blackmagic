@@ -647,6 +647,11 @@ bool stlink_set_freq_divisor(uint16_t divisor)
 	return true;
 }
 
+int stlink_hwversion(void)
+{
+	return Stlink.ver_stlink;
+}
+
 int stlink_enter_debug_swd(void)
 {
 	stlink_set_freq_divisor(1);

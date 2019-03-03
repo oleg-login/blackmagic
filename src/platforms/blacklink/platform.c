@@ -28,6 +28,11 @@
 
 #include "stlinkv2.h"
 
+int platform_hwversion(void)
+{
+	return stlink_hwversion();
+}
+
 const char *platform_target_voltage(void)
 {
 	return stlink_target_voltage();
