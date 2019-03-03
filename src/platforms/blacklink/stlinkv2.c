@@ -34,6 +34,19 @@
 #include <signal.h>
 #include <sys/time.h>
 
+#if !defined(timersub)
+/* This is a copy from GNU C Library (GNU LGPL 2.1), sys/time.h. */
+# define timersub(a, b, result)					\
+	do {										\
+		(result)->tv_sec = (a)->tv_sec - (b)->tv_sec;	\
+		(result)->tv_usec = (a)->tv_usec - (b)->tv_usec;	\
+		if ((result)->tv_usec < 0) {						\
+			--(result)->tv_sec;								\
+			(result)->tv_usec += 1000000;					\
+		}													\
+	} while (0)
+#endif
+
 #define VENDOR_ID_STLINK		0x483
 #define PRODUCT_ID_STLINK_MASK	0xfff0
 #define PRODUCT_ID_STLINK_GROUP 0x3740
@@ -215,7 +228,7 @@ struct trans_ctx {
 
 int debug_level = 0;
 
-static void on_trans_done(struct libusb_transfer * trans)
+static void LIBUSB_CALL on_trans_done(struct libusb_transfer * trans)
 {
     struct trans_ctx * const ctx = trans->user_data;
 
@@ -296,7 +309,7 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 								  NULL, NULL,
 								  0
 			);
-		DEBUG_USB("  Send (%ld): ", txsize);
+		DEBUG_USB("  Send (%" PRI_SIZET "): ", txsize);
 		for (size_t z = 0; z < txsize && z < 32 ; z++)
 			DEBUG_USB("%02x", txbuf[z]);
 		if (submit_wait(Stlink.req_trans)) {
@@ -321,7 +334,7 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 		if (res >0) {
 			int i;
 			uint8_t *p = rxbuf;
-			DEBUG_USB(" Rec (%ld/%d)", rxsize, res);
+			DEBUG_USB(" Rec (%" PRI_SIZET "/%d)", rxsize, res);
 			for (i = 0; i < res && i < 32 ; i++)
 				DEBUG_USB("%02x", p[i]);
 		}
