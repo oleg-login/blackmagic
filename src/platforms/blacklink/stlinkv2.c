@@ -618,8 +618,21 @@ void stlink_srst_set_val(bool assert)
 	stlink_usb_error_check(data);
 }
 
+bool stlink_set_freq_divisor(uint16_t divisor)
+{
+	uint8_t cmd[4] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_APIV2_SWD_SET_FREQ,
+					  divisor & 0xff, divisor >> 8};
+	uint8_t data[2];
+	send_recv(cmd, 4, data, 2);
+	if (stlink_usb_error_check(data))
+		return false;
+	return true;
+}
+
 int stlink_enter_debug_swd(void)
 {
+	stlink_set_freq_divisor(1);
 	uint8_t cmd[3] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_ENTER,
 					  STLINK_DEBUG_ENTER_SWD_NO_RESET};
