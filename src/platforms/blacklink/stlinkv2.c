@@ -61,6 +61,7 @@
 #define STLINK_DEBUG_ERR_OK            0x80
 #define STLINK_DEBUG_ERR_FAULT         0x81
 #define STLINK_NO_DEVICE_CONNECTED     0x05
+#define STLINK_JTAG_COMMAND_ERROR      0x08
 #define STLINK_JTAG_GET_IDCODE_ERROR   0x09
 #define STLINK_SWD_AP_WAIT             0x10
 #define STLINK_SWD_AP_FAULT            0x11
@@ -188,14 +189,20 @@ enum stlink_mode {
 	STLINK_MODE_DEBUG_SWIM
 };
 
+enum transport_mode_t{
+	STLINK_MODE_SWD = 0,
+	STLINK_MODE_JTAG = 0
+};
+
 typedef struct {
 	libusb_context* libusb_ctx;
 	uint16_t     vid;
 	uint16_t     pid;
+	uint8_t      transport_mode;
 	uint8_t      serial[32];
 	uint8_t      ep_tx;
-	uint8_t      ver_hw;
-	uint8_t      ver_stlink;
+	uint8_t      ver_hw;     /* 20, 21 or 31 deciphered from USB PID.*/
+	uint8_t      ver_stlink; /* 2 or 3  from API.*/
 	uint8_t      ver_api;
 	uint8_t      ver_jtag;
 	uint8_t      ver_mass;
@@ -304,15 +311,19 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 {
 	int res = 0;
 	if( txsize) {
+		int txlen = txsize;
 		libusb_fill_bulk_transfer(Stlink.req_trans, Stlink.handle,
 								  Stlink.ep_tx | LIBUSB_ENDPOINT_OUT,
-								  txbuf, txsize,
+								  txbuf, txlen,
 								  NULL, NULL,
 								  0
 			);
-		DEBUG_USB("  Send (%" PRI_SIZET "): ", txsize);
-		for (size_t z = 0; z < txsize && z < 32 ; z++)
-			DEBUG_USB("%02x", txbuf[z]);
+		DEBUG_USB("  Send (%d): ", txlen);
+		for (int i = 0; i < txlen && i < 32 ; i++) {
+			DEBUG_USB("%02x", txbuf[i]);
+			if ((i & 7) == 7)
+				DEBUG_USB(".");
+		}
 		if (submit_wait(Stlink.req_trans)) {
 			DEBUG_USB("clear 2\n");
 			libusb_clear_halt(Stlink.handle,2);
@@ -336,8 +347,11 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 			int i;
 			uint8_t *p = rxbuf;
 			DEBUG_USB(" Rec (%" PRI_SIZET "/%d)", rxsize, res);
-			for (i = 0; i < res && i < 32 ; i++)
+			for (i = 0; i < res && i < 32 ; i++) {
 				DEBUG_USB("%02x", p[i]);
+				if ((i & 7) == 7)
+					DEBUG_USB(".");
+			}
 		}
 	}
 	DEBUG_USB("\n");
@@ -358,6 +372,9 @@ static int stlink_usb_error_check(uint8_t *data)
 			return STLINK_ERROR_FAIL;
 		case STLINK_NO_DEVICE_CONNECTED:
 			DEBUG("No device connected\n");
+			return STLINK_ERROR_FAIL;
+		case STLINK_JTAG_COMMAND_ERROR:
+			DEBUG("Command error\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_JTAG_GET_IDCODE_ERROR:
 			DEBUG("Failure reading IDCODE\n");
@@ -415,7 +432,7 @@ static int stlink_usb_error_check(uint8_t *data)
 static void stlink_version(void)
 {
 	if (Stlink.ver_hw == 30) {
-		uint8_t cmd[1] = {STLINK_APIV3_GET_VERSION_EX};
+		uint8_t cmd[16] = {STLINK_APIV3_GET_VERSION_EX};
 		uint8_t data[12];
 		int size = send_recv(cmd, 16, data, 12);
 		if (size == -1) {
@@ -430,9 +447,9 @@ static void stlink_version(void)
 		Stlink.vid = data[3] <<  9 | data[8];
 		Stlink.pid = data[5] << 11 | data[10];
 	} else {
-		uint8_t cmd[1] = {STLINK_GET_VERSION};
+		uint8_t cmd[16] = {STLINK_GET_VERSION};
 		uint8_t data[6];
-		int size = send_recv(cmd, 1, data, 6);
+		int size = send_recv(cmd, 16, data, 6);
 		if (size == -1) {
 			printf("[!] send_recv STLINK_GET_VERSION_EX\n");
 		}
@@ -461,21 +478,21 @@ static void stlink_version(void)
 
 void stlink_leave_state(void)
 {
-	uint8_t cmd[2] = {STLINK_GET_CURRENT_MODE};
+	uint8_t cmd[16] = {STLINK_GET_CURRENT_MODE};
 	uint8_t data[2];
-	send_recv(cmd, 1, data, 2);
+	send_recv(cmd, 16, data, 2);
 	if (data[0] == STLINK_DEV_DFU_MODE) {
-		uint8_t dfu_cmd[2] = {STLINK_DFU_COMMAND, STLINK_DFU_EXIT};
+		uint8_t dfu_cmd[16] = {STLINK_DFU_COMMAND, STLINK_DFU_EXIT};
 		DEBUG("Leaving DFU Mode\n");
-		send_recv(dfu_cmd, 2, NULL, 0);
+		send_recv(dfu_cmd, 16, NULL, 0);
 	} else if (data[0] == STLINK_DEV_SWIM_MODE) {
-		uint8_t swim_cmd[2] = {STLINK_SWIM_COMMAND, STLINK_SWIM_EXIT};
+		uint8_t swim_cmd[16] = {STLINK_SWIM_COMMAND, STLINK_SWIM_EXIT};
 		DEBUG("Leaving SWIM Mode\n");
-		send_recv(swim_cmd, 2, NULL, 0);
+		send_recv(swim_cmd, 16, NULL, 0);
 	} else if (data[0] == STLINK_DEV_DEBUG_MODE) {
-		uint8_t dbg_cmd[2] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_EXIT};
+		uint8_t dbg_cmd[16] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_EXIT};
 		DEBUG("Leaving DEBUG Mode\n");
-		send_recv(dbg_cmd, 2, NULL, 0);
+		send_recv(dbg_cmd, 16, NULL, 0);
 	} else if (data[0] == STLINK_DEV_BOOTLOADER_MODE) {
 		DEBUG("BOOTLOADER Mode\n");
 	} else if (data[0] == STLINK_DEV_MASS_MODE) {
@@ -487,9 +504,9 @@ void stlink_leave_state(void)
 
 const char *stlink_target_voltage(void)
 {
-	uint8_t cmd[2] = {STLINK_GET_TARGET_VOLTAGE};
+	uint8_t cmd[16] = {STLINK_GET_TARGET_VOLTAGE};
 	uint8_t data[8];
-	send_recv(cmd, 1, data, 8);
+	send_recv(cmd, 16, data, 8);
 	uint16_t adc[2];
 	adc[0] = data[0] | data[1] << 8; /* Calibration value? */
 	adc[1] = data[4] | data[5] << 8; /* Measured value?*/
@@ -500,6 +517,14 @@ const char *stlink_target_voltage(void)
 	sprintf(res, "%4.2fV", result);
 	return res;
 }
+
+static void stlink_resetsys(void)
+{
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND ,STLINK_DEBUG_APIV2_RESETSYS};
+	uint8_t data[2];
+	send_recv(cmd, 16, data, 2);
+}
+
 void stlink_init(int argc, char **argv)
 {
 	libusb_device **devs, *dev;
@@ -620,6 +645,7 @@ void stlink_init(int argc, char **argv)
 		DEBUG("Please update Firmware\n");
 		goto error_1;
 	}
+	stlink_resetsys();
 	stlink_leave_state();
 	assert(gdb_if_init() == 0);
 	return;
@@ -632,24 +658,50 @@ void stlink_init(int argc, char **argv)
 
 void stlink_srst_set_val(bool assert)
 {
-	uint8_t cmd[3] = {STLINK_DEBUG_COMMAND,
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_DRIVE_NRST,
 					  (assert)? STLINK_DEBUG_APIV2_DRIVE_NRST_LOW
 					  : STLINK_DEBUG_APIV2_DRIVE_NRST_HIGH};
 	uint8_t data[2];
-	send_recv(cmd, 3, data, 2);
+	send_recv(cmd, 16, data, 2);
 	stlink_usb_error_check(data);
 }
 
 bool stlink_set_freq_divisor(uint16_t divisor)
 {
-	uint8_t cmd[4] = {STLINK_DEBUG_COMMAND,
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_SWD_SET_FREQ,
 					  divisor & 0xff, divisor >> 8};
 	uint8_t data[2];
-	send_recv(cmd, 4, data, 2);
+	send_recv(cmd, 16, data, 2);
 	if (stlink_usb_error_check(data))
 		return false;
+	return true;
+}
+
+bool stlink3_set_freq_divisor(uint16_t divisor)
+{
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
+					  STLINK_APIV3_GET_COM_FREQ,
+					  Stlink.transport_mode};
+	uint8_t data[52];
+	send_recv(cmd, 16, data, 52);
+	stlink_usb_error_check(data);
+	int size = data[8];
+	if (divisor > size)
+		divisor = size;
+	uint8_t *p = data + 12 + divisor * sizeof(uint32_t);
+	uint32_t freq = p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
+	DEBUG("Selected %" PRId32 " khz\n", freq);
+	cmd[1] = STLINK_APIV3_SET_COM_FREQ;
+	cmd[2] = Stlink.transport_mode;
+	cmd[3] = 0;
+	p = data + 12 + divisor * sizeof(uint32_t);
+	cmd[4] = p[0];
+	cmd[5] = p[1];
+	cmd[6] = p[2];
+	cmd[7] = p[3];
+	send_recv(cmd, 16, data, 8);
 	return true;
 }
 
@@ -660,24 +712,31 @@ int stlink_hwversion(void)
 
 int stlink_enter_debug_swd(void)
 {
-	stlink_set_freq_divisor(1);
-	uint8_t cmd[3] = {STLINK_DEBUG_COMMAND,
+	if (Stlink.ver_stlink == 3)
+		stlink3_set_freq_divisor(3);
+	else
+		stlink_set_freq_divisor(1);
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
 					  STLINK_DEBUG_APIV2_ENTER,
 					  STLINK_DEBUG_ENTER_SWD_NO_RESET};
 	uint8_t data[2];
 	DEBUG("Enter SWD\n");
-	send_recv(cmd, 3, data, 2);
+	send_recv(cmd, 16, data, 2);
+	uint8_t cmd1[16] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_READCOREID};
+	uint8_t data1[4];
+	send_recv(cmd1, 16, data1, 4);
 	return stlink_usb_error_check(data);
+	return 0;
 }
 
 uint32_t stlink_read_coreid(void)
 {
-	uint8_t cmd[2] = {STLINK_DEBUG_COMMAND,
-					  STLINK_DEBUG_APIV2_READ_IDCODES};
-	uint8_t data[12];
-	send_recv(cmd, 2, data, 12);
-	stlink_usb_error_check(data);
-	uint32_t id =  data[4] | data[5] << 8 | data[6] << 16 | data[7] << 24;
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_READCOREID};
+	uint8_t data[4];
+	send_recv(cmd, 16, data, 4);
+	uint32_t id =  data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
 	DEBUG("Read Core ID: 0x%08" PRIx32 "\n", id);
 	return id;
 }
@@ -727,37 +786,38 @@ int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 
 int stlink_open_ap(uint8_t ap)
 {
-       uint8_t cmd[3] = {
+       uint8_t cmd[16] = {
                STLINK_DEBUG_COMMAND,
                STLINK_DEBUG_APIV2_INIT_AP,
                ap,
        };
        uint8_t data[2];
-       send_recv(cmd, 3, data, 2);
+       send_recv(cmd, 16, data, 2);
        DEBUG_STLINK("Open AP %d\n", ap);
-       return stlink_usb_error_check(data);
+//       return stlink_usb_error_check(data);
+	   return 0;
 }
 
 void stlink_close_ap(uint8_t ap)
 {
-       uint8_t cmd[3] = {
+       uint8_t cmd[16] = {
                STLINK_DEBUG_COMMAND,
                STLINK_DEBUG_APIV2_CLOSE_AP_DBG,
                ap,
        };
        uint8_t data[2];
-       send_recv(cmd, 3, data, 2);
+       send_recv(cmd, 16, data, 2);
        DEBUG_STLINK("Close AP %d\n", ap);
        stlink_usb_error_check(data);
 }
 int stlink_usb_get_rw_status(void)
 {
-	uint8_t cmd[2] = {
+	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		STLINK_DEBUG_APIV2_GETLASTRWSTATUS2
 	};
 	uint8_t data[12];
-	send_recv(cmd, 2, data, 12);
+	send_recv(cmd, 16, data, 12);
 	return stlink_usb_error_check(data);
 }
 
@@ -781,13 +841,13 @@ void stlink_readmem(void *dest, uint32_t src, size_t len)
 
 	}
 	DEBUG_STLINK("%s len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", CMD, len, src);
-	uint8_t cmd[8] = {
+	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		type,
 		src & 0xff, (src >>  8) & 0xff, (src >> 16) & 0xff,
 		(src >> 24) & 0xff,
 		len & 0xff, len >> 8};
-	send_recv(cmd, 8, dest, len);
+	send_recv(cmd, 16, dest, len);
 	uint8_t *p = (uint8_t*)dest;
 	for (size_t i = 0; i > len ; i++) {
 		DEBUG_STLINK("%02x", *p++);
@@ -808,13 +868,13 @@ void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 			length = Stlink.block_size;
 		else
 			length = len;
-		uint8_t cmd[8] = {
+		uint8_t cmd[16] = {
 			STLINK_DEBUG_COMMAND,
 			STLINK_DEBUG_WRITEMEM_8BIT,
 			addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
 			(addr >> 24) & 0xff,
 			length & 0xff, length >> 8};
-		send_recv(cmd, 8, NULL, 0);
+		send_recv(cmd, 16, NULL, 0);
 		send_recv((void*)buffer, length, NULL, 0);
 		stlink_usb_get_rw_status();
 		len -= length;
@@ -828,13 +888,13 @@ void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 	for (size_t t = 0; t < len; t++) {
 		DEBUG_STLINK("%04x", buffer[t]);
 	}
-	uint8_t cmd[8] = {
+	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		STLINK_DEBUG_APIV2_WRITEMEM_16BIT,
 		addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
 		(addr >> 24) & 0xff,
 		len & 0xff, len >> 8};
-	send_recv(cmd, 8, NULL, 0);
+	send_recv(cmd, 16, NULL, 0);
 	send_recv((void*)buffer, len, NULL, 0);
 	stlink_usb_get_rw_status();
 }
@@ -845,32 +905,32 @@ void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 	for (size_t t = 0; t < len; t++) {
 		DEBUG_STLINK("%04x", buffer[t]);
 	}
-	uint8_t cmd[8] = {
+	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		STLINK_DEBUG_WRITEMEM_32BIT,
 		addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
 		(addr >> 24) & 0xff,
 		len & 0xff, len >> 8};
-	send_recv(cmd, 8, NULL, 0);
+	send_recv(cmd, 16, NULL, 0);
 	send_recv((void*)buffer, len, NULL, 0);
 	stlink_usb_get_rw_status();
 }
 
 void stlink_regs_read(void *data)
 {
-	uint8_t cmd[8] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READALLREGS};
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READALLREGS};
 	uint8_t res[88];
 	DEBUG_STLINK("Read all core registers\n");
-	send_recv(cmd, 8, res, 88);
+	send_recv(cmd, 16, res, 88);
 	stlink_usb_error_check(res);
 	memcpy(data, res + 4, 84);
 }
 
 uint32_t stlink_reg_read(int num)
 {
-	uint8_t cmd[8] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READREG, num};
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_READREG, num};
 	uint8_t res[8];
-	send_recv(cmd, 8, res, 8);
+	send_recv(cmd, 16, res, 8);
 	stlink_usb_error_check(res);
 	uint32_t ret = res[0] | res[1] << 8 | res[2] << 16 | res[3] << 24;
 	DEBUG_STLINK("Read reg %02" PRId32 " val 0x%08" PRIx32 "\n", num, ret);
@@ -879,13 +939,13 @@ uint32_t stlink_reg_read(int num)
 
 void stlink_reg_write(int num, uint32_t val)
 {
-	uint8_t cmd[7] = {
+	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND, STLINK_DEBUG_APIV2_WRITEREG, num,
 		val & 0xff, (val >>  8) & 0xff, (val >> 16) & 0xff,
 		(val >> 24) & 0xff
 	};
 	uint8_t res[2];
-	send_recv(cmd, 7, res, 2);
+	send_recv(cmd, 16, res, 2);
 	DEBUG_STLINK("Write reg %02" PRId32 " val 0x%08" PRIx32 "\n", num, val);
 	stlink_usb_error_check(res);
 }
