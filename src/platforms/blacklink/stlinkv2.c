@@ -849,7 +849,7 @@ void stlink_readmem(void *dest, uint32_t src, size_t len)
 		len & 0xff, len >> 8};
 	send_recv(cmd, 16, dest, len);
 	uint8_t *p = (uint8_t*)dest;
-	for (size_t i = 0; i > len ; i++) {
+	for (size_t i = 0; i < len ; i++) {
 		DEBUG_STLINK("%02x", *p++);
 	}
 	DEBUG_STLINK("\n");
@@ -862,6 +862,7 @@ void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 	for (size_t t = 0; t < len; t++) {
 		DEBUG_STLINK("%02x", buffer[t]);
 	}
+	DEBUG_STLINK("\n");
 	while (len) {
 		size_t length;
 		if (len > Stlink.block_size)
@@ -885,9 +886,10 @@ void stlink_writemem8(uint32_t addr, size_t len, uint8_t *buffer)
 void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 {
 	DEBUG_STLINK("Mem Write16 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
-	for (size_t t = 0; t < len; t++) {
+	for (size_t t = 0; t < len; t+=2) {
 		DEBUG_STLINK("%04x", buffer[t]);
 	}
+	DEBUG_STLINK("\n");
 	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		STLINK_DEBUG_APIV2_WRITEMEM_16BIT,
@@ -902,9 +904,10 @@ void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer)
 void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 {
 	DEBUG_STLINK("Mem Write32 len %" PRI_SIZET " addr 0x%08" PRIx32 ": ", len, addr);
-	for (size_t t = 0; t < len; t++) {
+	for (size_t t = 0; t < len; t+=4) {
 		DEBUG_STLINK("%04x", buffer[t]);
 	}
+	DEBUG_STLINK("\n");
 	uint8_t cmd[16] = {
 		STLINK_DEBUG_COMMAND,
 		STLINK_DEBUG_WRITEMEM_32BIT,
