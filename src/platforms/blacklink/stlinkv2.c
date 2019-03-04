@@ -219,7 +219,7 @@ stlink Stlink;
 static void exit_function(void)
 {
 	libusb_exit(NULL);
-	DEBUG("Cleanup\n");
+	DEBUG_STLINK("Cleanup\n");
 }
 
 /* SIGTERM handler. */
@@ -247,13 +247,13 @@ static void LIBUSB_CALL on_trans_done(struct libusb_transfer * trans)
         if(trans->status == LIBUSB_TRANSFER_TIMED_OUT)
         {
             DEBUG("Timeout\n");
-        }
-        else if (trans->status == LIBUSB_TRANSFER_CANCELLED)
+        } else if (trans->status == LIBUSB_TRANSFER_CANCELLED) {
             DEBUG("cancelled\n");
-        else if (trans->status == LIBUSB_TRANSFER_NO_DEVICE)
+        } else if (trans->status == LIBUSB_TRANSFER_NO_DEVICE) {
             DEBUG("no device\n");
-        else
+        } else {
             DEBUG("unknown\n");
+		}
         ctx->flags |= TRANS_FLAGS_HAS_ERROR;
     }
     ctx->flags |= TRANS_FLAGS_IS_DONE;
@@ -467,12 +467,13 @@ static void stlink_version(void)
 		}
 	}
 	DEBUG("V%dJ%d",Stlink.ver_stlink, Stlink.ver_jtag);
-	if (Stlink.ver_hw == 30)
+	if (Stlink.ver_hw == 30) {
 		DEBUG("M%dB%dS%d", Stlink.ver_mass, Stlink.ver_bridge, Stlink.ver_swim);
-	else if (Stlink.ver_hw == 20)
+	} else if (Stlink.ver_hw == 20) {
  		DEBUG("S%d", Stlink.ver_swim);
-	else if (Stlink.ver_hw == 21)
+	} else if (Stlink.ver_hw == 21) {
  		DEBUG("M%d", Stlink.ver_mass);
+	}
 	DEBUG("\n");
 }
 
@@ -525,6 +526,17 @@ static void stlink_resetsys(void)
 	send_recv(cmd, 16, data, 2);
 }
 
+void stlink_help(char **argv)
+{
+	DEBUG("Blackmagic Debug Probe on STM StlinkV2 and 3\n\n");
+	DEBUG("Usage: %s [options]\n", argv[0]);
+	DEBUG("\t-v[1|2]\t\t: Increasing verbosity\n");
+	DEBUG("\t-s \"string\"\t: Use Stlink with (partial) "
+		  "serial number \"string\"\n");
+	DEBUG("\t-h\t\t: This help.\n");
+	exit(0);
+}
+
 void stlink_init(int argc, char **argv)
 {
 	libusb_device **devs, *dev;
@@ -535,7 +547,7 @@ void stlink_init(int argc, char **argv)
 	libusb_init(&Stlink.libusb_ctx);
 	char *serial = NULL;
 	int c;
-	while((c = getopt(argc, argv, "s:v:")) != -1) {
+	while((c = getopt(argc, argv, "s:v:h")) != -1) {
 		switch(c) {
 		case 's':
 			serial = optarg;
@@ -543,6 +555,9 @@ void stlink_init(int argc, char **argv)
 		case 'v':
 			if (optarg)
 				debug_level = atoi(optarg);
+			break;
+		case 'h':
+			stlink_help(argv);
 			break;
 		}
 	}
