@@ -193,6 +193,8 @@ typedef struct {
 	uint16_t     vid;
 	uint16_t     pid;
 	uint8_t      serial[32];
+	uint8_t      ep_tx;
+	uint8_t      ver_hw;
 	uint8_t      ver_stlink;
 	uint8_t      ver_api;
 	uint8_t      ver_jtag;
@@ -301,10 +303,9 @@ static int send_recv(uint8_t *txbuf, size_t txsize,
 					 uint8_t *rxbuf, size_t rxsize)
 {
 	int res = 0;
-	int ep_tx = 1;
 	if( txsize) {
 		libusb_fill_bulk_transfer(Stlink.req_trans, Stlink.handle,
-								  ep_tx | LIBUSB_ENDPOINT_OUT,
+								  Stlink.ep_tx | LIBUSB_ENDPOINT_OUT,
 								  txbuf, txsize,
 								  NULL, NULL,
 								  0
@@ -413,41 +414,47 @@ static int stlink_usb_error_check(uint8_t *data)
 
 static void stlink_version(void)
 {
-	uint8_t cmd[16] = {STLINK_GET_VERSION};
-	uint8_t data[16];
-    int size = send_recv(cmd, 1, data, 6);
-    if (size == -1) {
-        printf("[!] send_recv STLINK_GET_VERSION\n");
-    }
-	Stlink.vid = data[3] << 8 | data[2];
-	Stlink.pid = data[5] << 8 | data[4];
-	int  version = data[0] << 8 | data[1];
-	Stlink.ver_stlink = (version >> 12) & 0x0f;
-	if (Stlink.ver_stlink == 3) {
-		cmd[0] = STLINK_APIV3_GET_VERSION_EX;
-		int size = send_recv(cmd, 16, data, 16);
+	if (Stlink.ver_hw == 30) {
+		uint8_t cmd[1] = {STLINK_APIV3_GET_VERSION_EX};
+		uint8_t data[12];
+		int size = send_recv(cmd, 16, data, 12);
 		if (size == -1) {
 			printf("[!] send_recv STLINK_APIV3_GET_VERSION_EX\n");
 		}
+		Stlink.ver_stlink = data[0];
 		Stlink.ver_swim  =  data[1];
 		Stlink.ver_jtag  =  data[2];
 		Stlink.ver_mass  =  data[3];
 		Stlink.ver_bridge = data[4];
 		Stlink.block_size = 512;
+		Stlink.vid = data[3] <<  9 | data[8];
+		Stlink.pid = data[5] << 11 | data[10];
 	} else {
-		Stlink.ver_jtag  =  (version >>  6) & 0x3f;
+		uint8_t cmd[1] = {STLINK_GET_VERSION};
+		uint8_t data[6];
+		int size = send_recv(cmd, 1, data, 6);
+		if (size == -1) {
+			printf("[!] send_recv STLINK_GET_VERSION_EX\n");
+		}
+		Stlink.vid = data[3] << 8 | data[2];
+		Stlink.pid = data[5] << 8 | data[4];
+		int  version = data[0] << 8 | data[1]; /* Big endian here!*/
+		Stlink.block_size = 64;
+		Stlink.ver_stlink = (version >> 12) & 0x0f;
+		Stlink.ver_jtag   = (version >>  6) & 0x3f;
 		if ((Stlink.pid == PRODUCT_ID_STLINKV21_MSD) ||
 			(Stlink.pid == PRODUCT_ID_STLINKV21)) {
-			Stlink.ver_mass  =  (version >>  0) & 0x3f;
+			Stlink.ver_mass = (version >> 0) & 0x3f;
+		} else {
+			Stlink.ver_swim = (version >> 0) & 0x3f;
 		}
-		Stlink.block_size = 64;
 	}
 	DEBUG("V%dJ%d",Stlink.ver_stlink, Stlink.ver_jtag);
-	if (Stlink.ver_api == 30)
+	if (Stlink.ver_hw == 30)
 		DEBUG("M%dB%dS%d", Stlink.ver_mass, Stlink.ver_bridge, Stlink.ver_swim);
-	else if (Stlink.ver_api == 20)
+	else if (Stlink.ver_hw == 20)
  		DEBUG("S%d", Stlink.ver_swim);
-	else if (Stlink.ver_api == 21)
+	else if (Stlink.ver_hw == 21)
  		DEBUG("M%d", Stlink.ver_mass);
 	DEBUG("\n");
 }
@@ -474,7 +481,7 @@ void stlink_leave_state(void)
 	} else if (data[0] == STLINK_DEV_MASS_MODE) {
 		DEBUG("MASS Mode\n");
 	} else {
-		DEBUG("Unknown Mode\n");
+		DEBUG("Unknown Mode %02x\n", data[0]);
 	}
 }
 
@@ -536,6 +543,10 @@ void stlink_init(int argc, char **argv)
 		if ((desc.idVendor == VENDOR_ID_STLINK) &&
 			((desc.idProduct & PRODUCT_ID_STLINK_MASK) ==
 			 PRODUCT_ID_STLINK_GROUP)) {
+			if (desc.idProduct == PRODUCT_ID_STLINKV1)  { /* Reject V1 devices.*/
+				DEBUG("STLINKV1 not supported\n");
+				continue;
+			}
 			if (Stlink.handle) {
 				libusb_close(Stlink.handle);
 				multiple_devices = (serial)? false : true;
@@ -549,29 +560,24 @@ void stlink_init(int argc, char **argv)
 				} else {
 					DEBUG("No serial number\n");
 				}
-				if (serial && (!strcmp((char*)Stlink.serial, serial)) &&
-					(desc.idProduct == PRODUCT_ID_STLINKV1))
+				if (serial && (!strncmp((char*)Stlink.serial, serial, strlen(serial))))
 					DEBUG("Found ");
-				if (((!serial) || (!strcmp((char*)Stlink.serial, serial))) &&
-					desc.idProduct == PRODUCT_ID_STLINKV2) {
-					DEBUG("STLINKV2	 serial %s\n", Stlink.serial);
-					Stlink.ver_api = 20;
-				} else if (((!serial) ||
-						  (!strcmp((char*)Stlink.serial, serial))) &&
-						 desc.idProduct == PRODUCT_ID_STLINKV21) {
-					Stlink.ver_api = 21;
-					DEBUG("STLINKV21 serial %s\n", Stlink.serial);
-				} else if (((!serial) ||
-							(!strcmp((char*)Stlink.serial, serial))) &&
-						   desc.idProduct == PRODUCT_ID_STLINKV3) {
-					DEBUG("STLINKV3	serial %s\n", Stlink.serial);
-					Stlink.ver_api = 21;
-				} else if (((!serial) ||
-							(!strcmp((char*)Stlink.serial, serial))) &&
-						   desc.idProduct == PRODUCT_ID_STLINKV1) {
-					DEBUG("STLINKV1 serial %s not supported\n", Stlink.serial);
+				if (!serial || (!strncmp((char*)Stlink.serial, serial, strlen(serial)))) {
+					if (desc.idProduct == PRODUCT_ID_STLINKV2) {
+						DEBUG("STLINKV20 serial %s\n", Stlink.serial);
+						Stlink.ver_hw = 20;
+						Stlink.ep_tx = 2;
+					} else if (desc.idProduct == PRODUCT_ID_STLINKV21) {
+						DEBUG("STLINKV21 serial %s\n", Stlink.serial);
+						Stlink.ver_hw = 21;
+						Stlink.ep_tx = 1;
+					} else if (desc.idProduct == PRODUCT_ID_STLINKV3) {
+						DEBUG("STLINKV3  serial %s\n", Stlink.serial);
+						Stlink.ver_hw = 30;
+						Stlink.ep_tx = 1;
+					}
 				}
-				if (serial && (!strcmp((char*)Stlink.serial, serial)))
+				if (serial && (!strncmp((char*)Stlink.serial, serial, strlen(serial))))
 					break;
 			} else {
 				DEBUG("Open failed %s\n", libusb_strerror(r));
@@ -579,7 +585,7 @@ void stlink_init(int argc, char **argv)
 		}
 	}
 	if (multiple_devices) {
-		DEBUG("Multiple Stlinks. Please sepecify serial number\n");
+		DEBUG("Multiple Stlinks. Please specify serial number\n");
 		goto error_1;
 	}
 	if (!Stlink.handle) {
@@ -610,7 +616,7 @@ void stlink_init(int argc, char **argv)
 	Stlink.req_trans = libusb_alloc_transfer(0);
 	Stlink.rep_trans = libusb_alloc_transfer(0);
  	stlink_version();
-	if (Stlink.ver_api < 30 && Stlink.ver_jtag < 32) {
+	if (Stlink.ver_stlink < 3 && Stlink.ver_jtag < 32) {
 		DEBUG("Please update Firmware\n");
 		goto error_1;
 	}
