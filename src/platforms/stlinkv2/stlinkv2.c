@@ -202,6 +202,7 @@ typedef struct {
 	uint16_t     pid;
 	uint8_t      transport_mode;
 	uint8_t      serial[32];
+	uint8_t      dap_select;
 	uint8_t      ep_tx;
 	uint8_t      ver_hw;     /* 20, 21 or 31 deciphered from USB PID.*/
 	uint8_t      ver_stlink; /* 2 or 3  from API.*/
@@ -732,7 +733,7 @@ int stlink_enter_debug_swd(void)
 	stlink_leave_state();
 	Stlink.transport_mode = STLINK_MODE_SWD;
 	if (Stlink.ver_stlink == 3)
-		stlink3_set_freq_divisor(3);
+		stlink3_set_freq_divisor(2);
 	else
 		stlink_set_freq_divisor(1);
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
@@ -754,7 +755,7 @@ int stlink_enter_debug_jtag(void)
 	stlink_leave_state();
 	Stlink.transport_mode = STLINK_MODE_JTAG;
 	if (Stlink.ver_stlink == 3)
-		stlink3_set_freq_divisor(3);
+		stlink3_set_freq_divisor(4);
 	else
 		stlink_set_freq_divisor(1);
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
@@ -833,7 +834,6 @@ void stlink_dp_abort(ADIv5_DP_t *dp, uint32_t abort)
 	adiv5_dp_write(dp, ADIV5_DP_ABORT, abort);
 }
 
-static uint8_t dap_select = 0;
 int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 {
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
@@ -841,8 +841,8 @@ int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 					  port & 0xff,
 					  port >> 8,
 					  0, addr >> 8};
-	if (port == STLINK_DEBUG_PORT_ACCESS  && dap_select)
-		cmd[4] = ((dap_select & 0xf) << 4) | (addr & 0xf);
+	if (port == STLINK_DEBUG_PORT_ACCESS  && Stlink.dap_select)
+		cmd[4] = ((Stlink.dap_select & 0xf) << 4) | (addr & 0xf);
 	else
 		cmd[4] = addr & 0xff;
 	uint8_t data[8];
@@ -858,7 +858,7 @@ int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 {
 	if (port == STLINK_DEBUG_PORT_ACCESS && addr == 8) {
-		dap_select = val;
+		Stlink.dap_select = val;
 		DEBUG_STLINK("Caching SELECT 0x%02" PRIx32 "\n", val);
 		return STLINK_ERROR_OK;
 	} else {
