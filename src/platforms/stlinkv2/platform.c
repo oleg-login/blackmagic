@@ -26,6 +26,7 @@
 #include <signal.h>
 #include <sys/time.h>
 
+#include "adiv5.h"
 #include "stlinkv2.h"
 
 int platform_hwversion(void)

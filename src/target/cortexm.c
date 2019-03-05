@@ -425,6 +425,8 @@ static void cortexm_regs_read(target *t, void *data)
 {
 	uint32_t *regs = data;
 #if defined(STLINKV2)
+	extern void stlink_regs_read(void *data);
+	extern uint32_t stlink_reg_read(int idx);
 	stlink_regs_read(data);
 	regs += sizeof(regnum_cortex_m);
 	if (t->target_options & TOPT_FLAVOUR_V7MF)
@@ -464,6 +466,7 @@ static void cortexm_regs_write(target *t, const void *data)
 {
 	const uint32_t *regs = data;
 #if defined(STLINKV2)
+	extern void stlink_reg_write(int num, uint32_t val);
 	for(size_t z = 1; z < sizeof(regnum_cortex_m) / 4; z++) {
 		stlink_reg_write(regnum_cortex_m[z], *regs);
 		regs++;

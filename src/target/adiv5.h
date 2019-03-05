@@ -23,10 +23,6 @@
 
 #include "jtag_scan.h"
 
-#if defined(STLINKV2)
-# include <stlinkv2.h>
-#endif
-
 #define ADIV5_APnDP       0x100
 #define ADIV5_DP_REG(x)   (x)
 #define ADIV5_AP_REG(x)   (ADIV5_APnDP | (x))
@@ -143,14 +139,7 @@ typedef struct ADIv5_DP_s {
 
 static inline uint32_t adiv5_dp_read(ADIv5_DP_t *dp, uint16_t addr)
 {
-#if !defined(STLINKV2)
 	return dp->dp_read(dp, addr);
-#else
-	uint32_t res;
-	(void)dp;
-	stlink_read_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, &res);
-	return res;
-#endif
 }
 
 static inline uint32_t adiv5_dp_error(ADIv5_DP_t *dp)

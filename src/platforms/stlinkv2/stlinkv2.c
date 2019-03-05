@@ -27,7 +27,9 @@
 #include "general.h"
 #include "gdb_if.h"
 #include "version.h"
+#include "adiv5.h"
 #include "stlinkv2.h"
+#include "exception.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -790,6 +792,47 @@ int stlink_read_idcodes(uint32_t *idcodes)
 	return 2;
 }
 
+uint32_t stlink_dp_read(ADIv5_DP_t *dp, uint16_t addr)
+{
+	if (addr & ADIV5_APnDP) {
+		DEBUG_STLINK("AP read addr 0x%04" PRIx16 "\n", addr);
+		stlink_dp_low_access(dp, ADIV5_LOW_READ, addr, 0);
+		return stlink_dp_low_access(dp, ADIV5_LOW_READ,
+		                           ADIV5_DP_RDBUFF, 0);
+	} else {
+		DEBUG_STLINK("DP read addr 0x%04" PRIx16 "\n", addr);
+		return stlink_dp_low_access(dp, ADIV5_LOW_READ, addr, 0);
+	}
+}
+
+uint32_t stlink_dp_error(ADIv5_DP_t *dp)
+{
+	uint32_t err, clr = 0;
+
+	err = stlink_dp_read(dp, ADIV5_DP_CTRLSTAT) &
+		(ADIV5_DP_CTRLSTAT_STICKYORUN | ADIV5_DP_CTRLSTAT_STICKYCMP |
+		ADIV5_DP_CTRLSTAT_STICKYERR | ADIV5_DP_CTRLSTAT_WDATAERR);
+
+	if(err & ADIV5_DP_CTRLSTAT_STICKYORUN)
+		clr |= ADIV5_DP_ABORT_ORUNERRCLR;
+	if(err & ADIV5_DP_CTRLSTAT_STICKYCMP)
+		clr |= ADIV5_DP_ABORT_STKCMPCLR;
+	if(err & ADIV5_DP_CTRLSTAT_STICKYERR)
+		clr |= ADIV5_DP_ABORT_STKERRCLR;
+	if(err & ADIV5_DP_CTRLSTAT_WDATAERR)
+		clr |= ADIV5_DP_ABORT_WDERRCLR;
+
+	adiv5_dp_write(dp, ADIV5_DP_ABORT, clr);
+	dp->fault = 0;
+
+	return err;
+}
+
+void stlink_dp_abort(ADIv5_DP_t *dp, uint32_t abort)
+{
+	adiv5_dp_write(dp, ADIV5_DP_ABORT, abort);
+}
+
 static uint8_t dap_select = 0;
 int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res)
 {
@@ -831,6 +874,31 @@ int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val)
 			  " \n", addr, val);
 		return stlink_usb_error_check(data);
 	}
+}
+
+uint32_t stlink_dp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
+				      uint16_t addr, uint32_t value)
+{
+	uint32_t response = 0;
+	int res;
+	if (RnW) {
+		res = stlink_read_dp_register(
+			STLINK_DEBUG_PORT_ACCESS, addr, &response);
+		DEBUG_STLINK("SWD read addr %04" PRIx16 ": %08" PRIx32 "\n",
+					 addr, response);
+	} else {
+		DEBUG_STLINK("SWD write addr %04" PRIx16 ": %08" PRIx32 "\n",
+					 addr, value);
+		res = stlink_write_dp_register(STLINK_DEBUG_PORT_ACCESS, addr, value);
+	}
+	if (res == STLINK_ERROR_WAIT)
+		raise_exception(EXCEPTION_TIMEOUT, "DP ACK timeout");
+
+	if(res == STLINK_ERROR_FAIL) {
+		dp->fault = 1;
+		return 0;
+	}
+	return response;
 }
 
 int stlink_open_ap(uint8_t ap)

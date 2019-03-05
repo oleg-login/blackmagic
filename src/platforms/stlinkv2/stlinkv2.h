@@ -17,6 +17,7 @@
  * along with this program.	 If not, see <http://www.gnu.org/licenses/>.
  */
 #if !defined(__STLINKV2_H_)
+
 #define STLINK_ERROR_FAIL -1
 #define STLINK_ERROR_OK 0
 #define STLINK_ERROR_WAIT 1
@@ -34,6 +35,12 @@ int stlink_read_idcodes(uint32_t *);
 uint32_t stlink_read_coreid(void);
 int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res);
 int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val);
+
+uint32_t stlink_dp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
+				      uint16_t addr, uint32_t value);
+uint32_t stlink_dp_read(ADIv5_DP_t *dp, uint16_t addr);
+uint32_t stlink_dp_error(ADIv5_DP_t *dp);
+void stlink_dp_abort(ADIv5_DP_t *dp, uint32_t abort);
 int stlink_open_ap(uint8_t ap);
 void stlink_close_ap(uint8_t ap);
 void stlink_readmem(void *dest, uint32_t src, size_t len);

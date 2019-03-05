@@ -23,29 +23,10 @@
  */
 
 #include "general.h"
-//#include "exception.h"
 #include "target.h"
 #include "adiv5.h"
-//#include "jtag_scan.h"
-//#include "jtagtap.h"
+#include "stlinkv2.h"
 #include "jtag_devs.h"
-
-#define JTAGDP_ACK_OK	0x02
-#define JTAGDP_ACK_WAIT	0x01
-
-/* 35-bit registers that control the ADIv5 DP */
-#define IR_ABORT	0x8
-#define IR_DPACC	0xA
-#define IR_APACC	0xB
-
-static uint32_t adiv5_jtagdp_read(ADIv5_DP_t *dp, uint16_t addr);
-
-static uint32_t adiv5_jtagdp_error(ADIv5_DP_t *dp);
-
-static uint32_t adiv5_jtagdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
-					uint16_t addr, uint32_t value);
-
-static void adiv5_jtagdp_abort(ADIv5_DP_t *dp, uint32_t abort);
 
 struct jtag_dev_s jtag_devs[JTAG_MAX_DEVS+1];
 int jtag_dev_count;
@@ -83,40 +64,11 @@ void adiv5_jtag_dp_handler(jtag_dev_t *dev)
 	dp->dev = dev;
 	dp->idcode = dev->idcode;
 
-	dp->dp_read = adiv5_jtagdp_read;
-	dp->error = adiv5_jtagdp_error;
-	dp->low_access = adiv5_jtagdp_low_access;
-	dp->abort = adiv5_jtagdp_abort;
+	dp->dp_read = stlink_dp_read;
+	dp->error = stlink_dp_error;
+	dp->low_access = stlink_dp_low_access;
+	dp->abort = stlink_dp_abort;
 
 	adiv5_dp_init(dp);
-}
-
-static uint32_t adiv5_jtagdp_read(ADIv5_DP_t *dp, uint16_t addr)
-{
-	(void) dp;
-	(void) addr;
-	return 0;
-}
-
-static uint32_t adiv5_jtagdp_error(ADIv5_DP_t *dp)
-{
-	(void) dp;
-	return 0;
-}
-
-static uint32_t adiv5_jtagdp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
-					uint16_t addr, uint32_t value)
-{
-	(void) dp;
-	(void) RnW;
-	(void) addr;
-	(void) value;
-	return 0;
-}
-
-static void adiv5_jtagdp_abort(ADIv5_DP_t *dp, uint32_t abort)
-{
-	(void) dp;
-	(void) abort;
 }
 
