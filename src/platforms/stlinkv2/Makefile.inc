@@ -10,3 +10,4 @@ else ifneq (, $(findstring cygwin, $(SYS)))
 LDFLAGS += -lws2_32
 endif
 SRC += 	timing.c stlinkv2.c
+SWD_HL = 1
