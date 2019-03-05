@@ -191,7 +191,7 @@ enum stlink_mode {
 
 enum transport_mode_t{
 	STLINK_MODE_SWD = 0,
-	STLINK_MODE_JTAG = 0
+	STLINK_MODE_JTAG
 };
 
 typedef struct {
@@ -727,6 +727,8 @@ int stlink_hwversion(void)
 
 int stlink_enter_debug_swd(void)
 {
+	stlink_leave_state();
+	Stlink.transport_mode = STLINK_MODE_SWD;
 	if (Stlink.ver_stlink == 3)
 		stlink3_set_freq_divisor(3);
 	else
@@ -745,6 +747,23 @@ int stlink_enter_debug_swd(void)
 	return 0;
 }
 
+int stlink_enter_debug_jtag(void)
+{
+	stlink_leave_state();
+	Stlink.transport_mode = STLINK_MODE_JTAG;
+	if (Stlink.ver_stlink == 3)
+		stlink3_set_freq_divisor(3);
+	else
+		stlink_set_freq_divisor(1);
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
+					  STLINK_DEBUG_APIV2_ENTER,
+					  STLINK_DEBUG_ENTER_JTAG_NO_RESET};
+	uint8_t data[2];
+	DEBUG("Enter JTAG\n");
+	send_recv(cmd, 16, data, 2);
+	return stlink_usb_error_check(data);
+}
+
 uint32_t stlink_read_coreid(void)
 {
 	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
@@ -754,6 +773,21 @@ uint32_t stlink_read_coreid(void)
 	uint32_t id =  data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
 	DEBUG("Read Core ID: 0x%08" PRIx32 "\n", id);
 	return id;
+}
+
+int stlink_read_idcodes(uint32_t *idcodes)
+{
+	uint8_t cmd[16] = {STLINK_DEBUG_COMMAND,
+					   STLINK_DEBUG_APIV2_READ_IDCODES};
+	uint8_t data[12];
+	send_recv(cmd, 16, data, 12);
+	if (stlink_usb_error_check(data))
+		return 0;
+	uint8_t *p = data + 4;
+	idcodes[0] = p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
+	p += 4;
+	idcodes[1] = p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24;
+	return 2;
 }
 
 static uint8_t dap_select = 0;

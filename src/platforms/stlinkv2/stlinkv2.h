@@ -29,6 +29,8 @@ void stlink_leave_state(void);
 const char *stlink_target_voltage(void);
 void stlink_srst_set_val(bool assert);
 int stlink_enter_debug_swd(void);
+int stlink_enter_debug_jtag(void);
+int stlink_read_idcodes(uint32_t *);
 uint32_t stlink_read_coreid(void);
 int stlink_read_dp_register(uint16_t port, uint16_t addr, uint32_t *res);
 int stlink_write_dp_register(uint16_t port, uint16_t addr, uint32_t val);
