@@ -1,3 +1,4 @@
+TARGET=blackmagic_stlinkv2
 SYS = $(shell $(CC) -dumpmachine)
 CFLAGS += -DLIBFTDI  -DSTLINKV2
 CFLAGS +=-I ./target
