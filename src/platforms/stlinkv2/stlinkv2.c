@@ -62,6 +62,7 @@
 #define STLINK_SWIM_BUSY               0x01
 #define STLINK_DEBUG_ERR_OK            0x80
 #define STLINK_DEBUG_ERR_FAULT         0x81
+#define STLINK_JTAG_UNKNOWN_JTAG_CHAIN 0x04
 #define STLINK_NO_DEVICE_CONNECTED     0x05
 #define STLINK_JTAG_COMMAND_ERROR      0x08
 #define STLINK_JTAG_GET_IDCODE_ERROR   0x09
@@ -372,6 +373,9 @@ static int stlink_usb_error_check(uint8_t *data)
 			return STLINK_ERROR_OK;
 		case STLINK_DEBUG_ERR_FAULT:
 			DEBUG("SWD fault response (0x%x)\n", STLINK_DEBUG_ERR_FAULT);
+			return STLINK_ERROR_FAIL;
+		case STLINK_JTAG_UNKNOWN_JTAG_CHAIN:
+			DEBUG("Unknown JTAG chain\n");
 			return STLINK_ERROR_FAIL;
 		case STLINK_NO_DEVICE_CONNECTED:
 			DEBUG("No device connected\n");
