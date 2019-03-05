@@ -9,6 +9,7 @@ CFLAGS += -Wno-cast-function-type
 else ifneq (, $(findstring cygwin, $(SYS)))
 LDFLAGS += -lws2_32
 endif
+VPATH += platforms/pc
 SRC += 	timing.c stlinkv2.c
 SWD_HL = 1
 JTAG_HL = 1

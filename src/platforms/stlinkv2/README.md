@@ -10,3 +10,7 @@ Run the resulting blackmagic_stlinkv2 executabel to start the gdb server
 CrosscCompling for windows with mingw succeeds.
 
 Drawback: JTAG does not work for chains with multiple devices.
+
+This branch may get forced push. In case of problems:
+- git reset --hard master
+- git rebase
