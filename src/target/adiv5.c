@@ -358,6 +358,9 @@ static bool adiv5_component_probe(ADIv5_AP_t *ap, uint32_t addr)
 	return res;
 }
 
+bool __attribute__((weak)) adiv5_ap_setup(int i) {(void)i; return true;}
+void __attribute__((weak)) adiv5_ap_cleanup(int i) {(void)i;}
+
 ADIv5_AP_t *adiv5_new_ap(ADIv5_DP_t *dp, uint8_t apsel)
 {
 	ADIv5_AP_t *ap, tmpap;
@@ -388,7 +391,6 @@ ADIv5_AP_t *adiv5_new_ap(ADIv5_DP_t *dp, uint8_t apsel)
 	      apsel, ap->idr, ap->cfg, ap->base, ap->csw);
 	return ap;
 }
-
 
 void adiv5_dp_init(ADIv5_DP_t *dp)
 {
@@ -446,23 +448,13 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 	}
 	/* Probe for APs on this DP */
 	for(int i = 0; i < 256; i++) {
-#if defined(STLINKV2)
-		if (i > 7)
-			break; /* Only 8 APs on STLINKV2*/
-		extern int stlink_open_ap(int i);
-		if (stlink_open_ap(i))
-			break;
-		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
+		ADIv5_AP_t *ap = NULL;
+		if (adiv5_ap_setup(i))
+			ap = adiv5_new_ap(dp, i);
 		if (ap == NULL) {
-		extern void stlink_close_ap(int i);
-			stlink_close_ap(i);
+			adiv5_ap_cleanup(i);
 			continue;
 		}
-#else
-		ADIv5_AP_t *ap = adiv5_new_ap(dp, i);
-		if (ap == NULL)
-			continue;
-#endif
 		extern void kinetis_mdm_probe(ADIv5_AP_t *);
 		kinetis_mdm_probe(ap);
 
@@ -494,7 +486,6 @@ void adiv5_dp_init(ADIv5_DP_t *dp)
 #define ALIGNOF(x) (((x) & 3) == 0 ? ALIGN_WORD : \
                     (((x) & 1) == 0 ? ALIGN_HALFWORD : ALIGN_BYTE))
 
-#if !defined(STLINKV2)
 /* Program the CSW and TAR for sequencial access at a given width */
 static void ap_mem_access_setup(ADIv5_AP_t *ap, uint32_t addr, enum align align)
 {
@@ -534,7 +525,7 @@ static void * extract(void *dest, uint32_t src, uint32_t val, enum align align)
 	return (uint8_t *)dest + (1 << align);
 }
 
-void
+void  __attribute__((weak))
 adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
 {
 	uint32_t tmp;
@@ -565,7 +556,7 @@ adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
 	extract(dest, src, tmp, align);
 }
 
-void
+void  __attribute__((weak))
 adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
 					  size_t len, enum align align)
 {
@@ -601,14 +592,16 @@ adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
 	}
 }
 
-void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
+void  __attribute__((weak))
+adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
 {
 	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
 			((uint32_t)ap->apsel << 24)|(addr & 0xF0));
 	adiv5_dp_write(ap->dp, addr, value);
 }
 
-uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
+uint32_t  __attribute__((weak))
+adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 {
 	uint32_t ret;
 	adiv5_dp_write(ap->dp, ADIV5_DP_SELECT,
@@ -616,52 +609,7 @@ uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
 	ret = adiv5_dp_read(ap->dp, addr);
 	return ret;
 }
-#else
-void
-adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
-{
-	(void)ap;
-	extern void stlink_readmem(void *dest, uint32_t src, size_t len);
-	stlink_readmem(dest, src, len);
-}
-
-void
-adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
-					  size_t len, enum align align)
-{
-	(void)ap;
-	switch(align) {
-extern void stlink_writemem8 (uint32_t addr, size_t len, uint8_t  *buffer);
-extern void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer);
-extern void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer);
-	case ALIGN_BYTE: stlink_writemem8(dest, len, (uint8_t *) src);
-		break;
-	case ALIGN_HALFWORD: stlink_writemem16(dest, len, (uint16_t *) src);
-		break;
-	case ALIGN_WORD: stlink_writemem32(dest, len, (uint32_t *) src);
-		break;
-	case ALIGN_DWORD: stlink_writemem32(dest, len, (uint32_t *) src);
-		break;
-	}
-}
-
-void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
-{
-	extern int stlink_write_dp_register(uint16_t port, uint16_t addr,
-										uint32_t val);
-	stlink_write_dp_register(ap->apsel, addr, value);
-}
-
-uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
-{
-	extern int stlink_read_dp_register(uint16_t port, uint16_t addr,
-									   uint32_t *res);
-	uint32_t ret;
-	stlink_read_dp_register(ap->apsel, addr, &ret);
-	return ret;
-}
-#endif
-void
+void  __attribute__((weak))
 adiv5_mem_write(ADIv5_AP_t *ap, uint32_t dest, const void *src, size_t len)
 {
 	enum align align = MIN(ALIGNOF(dest), ALIGNOF(len));

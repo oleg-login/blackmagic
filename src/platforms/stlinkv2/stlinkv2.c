@@ -905,21 +905,23 @@ uint32_t stlink_dp_low_access(ADIv5_DP_t *dp, uint8_t RnW,
 	return response;
 }
 
-int stlink_open_ap(uint8_t ap)
+bool adiv5_ap_setup(int ap)
 {
-       uint8_t cmd[16] = {
-               STLINK_DEBUG_COMMAND,
-               STLINK_DEBUG_APIV2_INIT_AP,
-               ap,
-       };
-       uint8_t data[2];
-       send_recv(cmd, 16, data, 2);
-       DEBUG_STLINK("Open AP %d\n", ap);
-//       return stlink_usb_error_check(data);
-	   return 0;
+	if (ap > 7)
+		return false;
+	uint8_t cmd[16] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_APIV2_INIT_AP,
+		ap,
+	};
+	uint8_t data[2];
+	send_recv(cmd, 16, data, 2);
+	DEBUG_STLINK("Open AP %d\n", ap);
+	stlink_usb_error_check(data);
+	return true;
 }
 
-void stlink_close_ap(uint8_t ap)
+void div5_ap_cleanup(int ap)
 {
        uint8_t cmd[16] = {
                STLINK_DEBUG_COMMAND,
@@ -1072,4 +1074,48 @@ void stlink_reg_write(int num, uint32_t val)
 	send_recv(cmd, 16, res, 2);
 	DEBUG_STLINK("Write reg %02" PRId32 " val 0x%08" PRIx32 "\n", num, val);
 	stlink_usb_error_check(res);
+}
+
+void
+adiv5_mem_read(ADIv5_AP_t *ap, void *dest, uint32_t src, size_t len)
+{
+	(void)ap;
+	extern void stlink_readmem(void *dest, uint32_t src, size_t len);
+	stlink_readmem(dest, src, len);
+}
+
+void
+adiv5_mem_write_sized(ADIv5_AP_t *ap, uint32_t dest, const void *src,
+					  size_t len, enum align align)
+{
+	(void)ap;
+	switch(align) {
+extern void stlink_writemem8 (uint32_t addr, size_t len, uint8_t  *buffer);
+extern void stlink_writemem16(uint32_t addr, size_t len, uint16_t *buffer);
+extern void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer);
+	case ALIGN_BYTE: stlink_writemem8(dest, len, (uint8_t *) src);
+		break;
+	case ALIGN_HALFWORD: stlink_writemem16(dest, len, (uint16_t *) src);
+		break;
+	case ALIGN_WORD: stlink_writemem32(dest, len, (uint32_t *) src);
+		break;
+	case ALIGN_DWORD: stlink_writemem32(dest, len, (uint32_t *) src);
+		break;
+	}
+}
+
+void adiv5_ap_write(ADIv5_AP_t *ap, uint16_t addr, uint32_t value)
+{
+	extern int stlink_write_dp_register(uint16_t port, uint16_t addr,
+										uint32_t val);
+	stlink_write_dp_register(ap->apsel, addr, value);
+}
+
+uint32_t adiv5_ap_read(ADIv5_AP_t *ap, uint16_t addr)
+{
+	extern int stlink_read_dp_register(uint16_t port, uint16_t addr,
+									   uint32_t *res);
+	uint32_t ret;
+	stlink_read_dp_register(ap->apsel, addr, &ret);
+	return ret;
 }
