@@ -476,15 +476,16 @@ static int send_recv_retry(uint8_t *txbuf, size_t txsize,
 			return res;
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec >= 1)
-			break;
-		if (res != STLINK_ERROR_WAIT)
+		if ((diff.tv_sec >= 1) || (res != STLINK_ERROR_WAIT)) {
+			DEBUG_STLINK("Failed: ");
+			stlink_usb_error_check(rxbuf, true);
 			return res;
+		}
 	}
 	return res;
 }
 
-static int send_recv_retry_rw_status(uint8_t *txbuf, size_t txsize,
+static int read_retry(uint8_t *txbuf, size_t txsize,
 					 uint8_t *rxbuf, size_t rxsize)
 {
 	struct timeval start;
@@ -500,15 +501,47 @@ static int send_recv_retry_rw_status(uint8_t *txbuf, size_t txsize,
 	while(1) {
 		send_recv(txbuf, txsize, rxbuf, rxsize);
 		send_recv(cmd, 16, data, 12);
-		res = stlink_usb_error_check(rxbuf, false);
+		res = stlink_usb_error_check(data, false);
 		if (res == STLINK_ERROR_OK)
 			return res;
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec >= 1)
+		if ((diff.tv_sec >= 1) || (res != STLINK_ERROR_WAIT)) {
+			DEBUG_STLINK("Failed: ");
+			stlink_usb_error_check(data, true);
 			return res;
-		if (res != STLINK_ERROR_WAIT)
+		}
+	}
+	return res;
+}
+
+static int write_retry(uint8_t *cmdbuf, size_t cmdsize,
+					 uint8_t *txbuf, size_t txsize)
+{
+	struct timeval start;
+	struct timeval now;
+	struct timeval diff;
+	gettimeofday(&start, NULL);
+	int res;
+	uint8_t cmd[16] = {
+		STLINK_DEBUG_COMMAND,
+		STLINK_DEBUG_APIV2_GETLASTRWSTATUS2
+	};
+	uint8_t data[12];
+	while(1) {
+		send_recv(cmdbuf, cmdsize, NULL, 0);
+		send_recv(txbuf, txsize, NULL, 0);
+		send_recv(cmd, 16, data, 12);
+		res = stlink_usb_error_check(data, false);
+		if (res == STLINK_ERROR_OK)
 			return res;
+		gettimeofday(&now, NULL);
+		timersub(&now, &start, &diff);
+		if ((diff.tv_sec >= 1) || (res != STLINK_ERROR_WAIT)) {
+			DEBUG_STLINK("failed");
+			stlink_usb_error_check(data, true);
+			return res;
+		}
 	}
 	return res;
 }
@@ -1050,14 +1083,12 @@ void stlink_readmem(void *dest, uint32_t src, size_t len)
 		src & 0xff, (src >>  8) & 0xff, (src >> 16) & 0xff,
 		(src >> 24) & 0xff,
 		len & 0xff, len >> 8};
-	int res = send_recv_retry_rw_status(cmd, 16, dest, len);
+	int res = read_retry(cmd, 16, dest, len);
 	if (res == STLINK_ERROR_OK) {
 		uint8_t *p = (uint8_t*)dest;
 		for (size_t i = 0; i < len ; i++) {
 			DEBUG_STLINK("%02x", *p++);
 		}
-	} else {
-		DEBUG_STLINK("failed");
 	}
 	DEBUG_STLINK("\n");
 }
@@ -1120,9 +1151,7 @@ void stlink_writemem32(uint32_t addr, size_t len, uint32_t *buffer)
 		addr & 0xff, (addr >>  8) & 0xff, (addr >> 16) & 0xff,
 		(addr >> 24) & 0xff,
 		len & 0xff, len >> 8};
-	send_recv(cmd, 16, NULL, 0);
-	send_recv((void*)buffer, len, NULL, 0);
-	stlink_usb_get_rw_status();
+	write_retry(cmd, 16, (void*)buffer, len);
 }
 
 void stlink_regs_read(void *data)
