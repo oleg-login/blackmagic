@@ -82,6 +82,7 @@
 #define STLINK_SWD_AP_WDATA_ERROR      0x18
 #define STLINK_SWD_AP_STICKY_ERROR     0x19
 #define STLINK_SWD_AP_STICKYORUN_ERROR 0x1a
+#define STLINK_JTAG_UNKNOWN_CMD        0x42
 
 #define STLINK_CORE_RUNNING            0x80
 #define STLINK_CORE_HALTED             0x81
@@ -453,6 +454,10 @@ static int stlink_usb_error_check(uint8_t *data, bool verbose)
 		case STLINK_SWD_AP_STICKYORUN_ERROR:
 			if (verbose)
 				DEBUG("STLINK_SWD_AP_STICKYORUN_ERROR\n");
+			return STLINK_ERROR_FAIL;
+		case STLINK_JTAG_UNKNOWN_CMD :
+			if (verbose)
+				DEBUG("STLINK_JTAG_UNKNOWN_CMD\n");
 			return STLINK_ERROR_FAIL;
 		default:
 			if (verbose)
@@ -855,7 +860,8 @@ int stlink_enter_debug_swd(void)
 					  STLINK_DEBUG_ENTER_SWD_NO_RESET};
 	uint8_t data[2];
 	DEBUG("Enter SWD\n");
-	send_recv_retry(cmd, 16, data, 2);
+	if (send_recv_retry(cmd, 16, data, 2) != STLINK_ERROR_OK)
+		return -1;
 	uint8_t cmd1[16] = {STLINK_DEBUG_COMMAND,
 						STLINK_DEBUG_READCOREID};
 	uint8_t data1[4];
