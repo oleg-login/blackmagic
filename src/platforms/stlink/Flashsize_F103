@@ -1,8 +1,8 @@
 Announced versus available Flash size on F103
 ============================================
 Up to Stlink V2, the CPU soldered on the board was a F103C8 with 64 kiByte
-flash. Up to about version 280 of BMP, this limit was not hit when linked
-against nanolib.
+(of announced ) flash. Up to about version 280 of BMP, this limit was not hit
+when linked against nanolib.
 
 StlinkV2-1 has a STM32F103CB, like a genuine BMP.
 
@@ -40,14 +40,5 @@ script/stm32_mem.py does not care for the announced size:
  Programming memory at 0x08010800
  All operations complete!
 
-Get length of binary
-  > ls -l blackmagic.bin
- -rwxr-xr-x 1 bon users 59712 21. Sep 22:47 blackmagic.bin
-Actual file size may differ!
-
-Upload binary from flash with the exact size
-  > dfu-util -s 0x08002000:leave:force:59712 -U blackmagic.bin.1
-
-Compare
-  > diff blackmagic.bin*
-No differences should get reported!
+Stm32_mem compares binary to flash and flashed binary and
+reports mismatch.
